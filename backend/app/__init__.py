@@ -1,0 +1,1 @@
+"""Gestión Siniestros application package."""

@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+.env
+.env.local
+.env.production
+
+# Node
+node_modules/
+.next/
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+out/
+
+# Docker
+*.log
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Builds
+dist/
+build/
+
+# Claude Code (private config — not for repo)
+.claude/
+CLAUDE.md
+claude.md
+.code-review-graph/
+setup-claude.sh
+

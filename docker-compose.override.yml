@@ -1,0 +1,35 @@
+# Override para desarrollo local: hot reload via bind mounts.
+# Docker Compose aplica este archivo automáticamente sobre docker-compose.yml.
+# No usar en staging ni producción.
+
+services:
+  backend:
+    build:
+      target: runner
+    volumes:
+      # Monta código para hot reload; paquetes ya instalados en la imagen runner
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - ENVIRONMENT=development
+
+  celery-worker:
+    build:
+      target: runner
+    volumes:
+      - ./backend:/app
+    environment:
+      - ENVIRONMENT=development
+
+  frontend:
+    build:
+      # deps stage: solo node_modules, sin next build (lo corre next dev en runtime)
+      target: deps
+    volumes:
+      - ./frontend:/app
+      # Preserva node_modules del contenedor (no sobreescribir con el host)
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
