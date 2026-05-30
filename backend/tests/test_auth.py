@@ -1,13 +1,11 @@
 """Auth endpoint tests — 11 scenarios covering the full auth flow."""
 
 import pyotp
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tenant import Tenant
-from app.models.user import Role, User
-from app.core.security import hash_password
+from app.models.user import User
 
 
 # ---------------------------------------------------------------------------

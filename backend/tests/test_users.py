@@ -3,9 +3,6 @@
 import pytest
 from httpx import AsyncClient
 
-from app.models.user import Role, User
-from app.core.security import hash_password
-
 
 def _auth_headers(access_token: str) -> dict:
     return {"Authorization": f"Bearer {access_token}", "X-Tenant-Slug": "aseguradora-a"}

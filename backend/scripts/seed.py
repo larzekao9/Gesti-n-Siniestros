@@ -4,7 +4,6 @@ import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.core.config import settings
 from app.core.security import hash_password
-from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.user import User, Role
 
