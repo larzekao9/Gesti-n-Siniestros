@@ -10,7 +10,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      # Host: 5433 (5432 esta tomado por PostgreSQL nativo de pgAdmin en Windows).
+      # Contenedor: 5432 (puerto interno default de postgres).
+      # Backend dentro de la red Docker usa "postgres:5432", no se afecta.
+      # Si conectas con pgAdmin/DBeaver desde el host al postgres del proyecto: localhost:5433
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

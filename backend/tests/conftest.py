@@ -23,12 +23,17 @@ async def db_session() -> AsyncSession:
         await conn.run_sync(Base.metadata.create_all)
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    # Inject the SQLite factory into app.state so TenantMiddleware uses it
+    app.state._middleware_session_factory = session_factory
+
     async with session_factory() as session:
         yield session
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
+    app.state._middleware_session_factory = None
     await engine.dispose()
 
 
@@ -81,3 +86,4 @@ async def user_admin(db_session: AsyncSession, tenant_a: Tenant) -> User:
     await db_session.commit()
     await db_session.refresh(user)
     return user
+

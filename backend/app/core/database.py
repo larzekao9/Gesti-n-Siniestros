@@ -24,11 +24,5 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency that yields an async database session.
-
-    Yields:
-        An ``AsyncSession`` bound to the current request. The session is
-        automatically closed when the request finishes.
-    """
     async with AsyncSessionLocal() as session:
         yield session

@@ -41,6 +41,13 @@ export function LoginForm() {
         tenant_slug: values.tenant_slug,
         mfa_code: values.mfa_code || undefined,
       })
+      // DT-02: Backend returns 200 { "mfa_required": true } when MFA code needed
+      if (response.mfa_required) {
+        setNeedsMFA(true)
+        toast.info('Ingresá tu código de autenticación')
+        setIsSubmitting(false)
+        return
+      }
       setAuth(response.user, response.access_token, response.refresh_token, values.tenant_slug)
       toast.success('Sesión iniciada correctamente')
       router.push('/dashboard')
@@ -48,12 +55,6 @@ export function LoginForm() {
       if (isAxiosError(error)) {
         const status = error.response?.status
         const detail = (error.response?.data as { detail?: string })?.detail
-
-        if (status === 403 && detail?.toLowerCase().includes('mfa')) {
-          setNeedsMFA(true)
-          toast.info('Ingresá tu código de autenticación')
-          return
-        }
 
         if (status === 401) {
           toast.error('Email o contraseña incorrectos')

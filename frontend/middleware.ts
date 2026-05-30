@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/register', '/mfa/setup', '/mfa/verify']
+const PUBLIC_PATHS = ['/login', '/register', '/mfa/setup', '/mfa/verify', '/forgot-password', '/reset-password']
 const AUTH_REDIRECT = '/login'
 const POST_AUTH_REDIRECT = '/dashboard'
 

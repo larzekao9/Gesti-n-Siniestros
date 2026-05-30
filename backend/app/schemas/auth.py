@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class RegisterRequest(BaseModel):
@@ -55,6 +55,34 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class PasswordResetRequest(BaseModel):
+    """Request a password reset link."""
+
+    email: EmailStr
+    tenant_slug: str
+
+
+class PasswordResetConfirm(BaseModel):
+    """Confirm a password reset with the token and new password."""
+
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+class PasswordChangeRequest(BaseModel):
+    """Change password while logged in."""
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+    confirm_password: str
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "PasswordChangeRequest":
+        if self.new_password != self.confirm_password:
+            raise ValueError("Las contraseñas no coinciden")
+        return self
 
 
 class MFASetupResponse(BaseModel):

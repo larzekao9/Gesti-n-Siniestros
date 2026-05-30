@@ -12,6 +12,10 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - ENVIRONMENT=development
+      # Mismo motivo que en frontend: bind mount Windows->Linux no propaga
+      # eventos inotify. Uvicorn usa watchfiles (rust) que soporta polling
+      # via esta variable. Sin esto, --reload no detecta cambios en .py.
+      - WATCHFILES_FORCE_POLLING=true
 
   celery-worker:
     build:
@@ -33,3 +37,10 @@ services:
     command: npm run dev
     environment:
       - NODE_ENV=development
+      # Fix hot-reload en Docker Desktop sobre Windows: el bind mount no
+      # propaga eventos inotify desde NTFS, asi que Webpack nunca se entera
+      # de los cambios. WATCHPACK_POLLING=true fuerza a Webpack a revisar
+      # los archivos periodicamente (~1s). CHOKIDAR_USEPOLLING cubre otros
+      # watchers (TypeScript, dotenv, etc.).
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true

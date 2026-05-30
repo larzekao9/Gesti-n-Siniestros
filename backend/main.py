@@ -7,7 +7,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.core.config import settings
-from app.routers import auth
+from app.middleware.tenant import TenantMiddleware
+from app.routers import auth, users, policyholders, policies, vehicles
 
 app = FastAPI(
     title="Gestión Siniestros API",
@@ -29,7 +30,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Multi-tenant resolution (DT-01)
+app.add_middleware(TenantMiddleware)
+
 app.include_router(auth.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(policyholders.router, prefix="/api")
+app.include_router(policies.router, prefix="/api")
+app.include_router(vehicles.router, prefix="/api")
 
 
 @app.get("/health", tags=["ops"])

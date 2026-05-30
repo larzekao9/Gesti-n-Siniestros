@@ -17,20 +17,15 @@ class TenantMiddleware(BaseHTTPMiddleware):
     """Resolves the tenant from ``X-Tenant-Slug`` and stores it on request state."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        """Attach the resolved tenant to ``request.state.tenant``.
-
-        Args:
-            request: The incoming Starlette request.
-            call_next: The next middleware or endpoint handler.
-
-        Returns:
-            The response from the downstream handler.
-        """
         slug = request.headers.get("X-Tenant-Slug")
         request.state.tenant = None
 
         if slug:
-            async with AsyncSessionLocal() as db:
+            # Use test-overridden session factory if available via app.state
+            SessionFactory = getattr(
+                request.app.state, "_middleware_session_factory", AsyncSessionLocal
+            )
+            async with SessionFactory() as db:
                 result = await db.execute(
                     select(Tenant).where(Tenant.slug == slug, Tenant.is_active.is_(True))
                 )

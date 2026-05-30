@@ -33,23 +33,18 @@ export function MFAVerifyForm() {
   const onSubmit = async (values: MFAVerifyFormValues) => {
     setIsSubmitting(true)
     try {
-      const response = await authApi.verifyMFA(values.code)
-      if (response.success) {
-        // Update MFA enabled state in the store if the user is present
-        if (user && accessToken) {
-          setAuth(
-            { ...user, mfa_enabled: true },
-            accessToken,
-            localStorage.getItem('siniestros_rt') ?? '',
-            tenantSlug ?? ''
-          )
-        }
-        toast.success('Autenticación en dos pasos activada correctamente')
-        router.push('/dashboard')
-      } else {
-        toast.error('Código incorrecto. Intentá nuevamente.')
-        reset()
+      await authApi.verifyMFA(values.code)
+      // Update MFA enabled state in the store if the user is present
+      if (user && accessToken) {
+        setAuth(
+          { ...user, mfa_enabled: true },
+          accessToken,
+          localStorage.getItem('siniestros_rt') ?? '',
+          tenantSlug ?? ''
+        )
       }
+      toast.success('Autenticación en dos pasos activada correctamente')
+      router.push('/dashboard')
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         const detail = (error.response?.data as { detail?: string })?.detail

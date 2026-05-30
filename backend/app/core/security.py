@@ -1,5 +1,6 @@
 """Security utilities: JWT creation/verification, password hashing, TOTP."""
 
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -74,6 +75,7 @@ def create_refresh_token(data: dict) -> str:
     )
     to_encode["exp"] = expire
     to_encode["type"] = "refresh"
+    to_encode["jti"] = secrets.token_hex(16)
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

@@ -6,6 +6,7 @@ import type {
   MFASetupResponse,
   MFAVerifyResponse,
   RefreshResponse,
+  User,
 } from '@/types/auth'
 
 export const authApi = {
@@ -39,5 +40,25 @@ export const authApi = {
   verifyMFA: (code: string): Promise<MFAVerifyResponse> =>
     apiClient
       .post<MFAVerifyResponse>('/auth/mfa/verify', { code })
+      .then((res) => res.data),
+
+  getMe: (): Promise<User> =>
+    apiClient
+      .get<User>('/auth/me')
+      .then((res) => res.data),
+
+  requestPasswordReset: (email: string, tenant_slug: string): Promise<{ message: string }> =>
+    apiClient
+      .post<{ message: string }>('/auth/password-reset/request', { email, tenant_slug })
+      .then((res) => res.data),
+
+  confirmPasswordReset: (token: string, new_password: string): Promise<{ message: string }> =>
+    apiClient
+      .post<{ message: string }>('/auth/password-reset/confirm', { token, new_password })
+      .then((res) => res.data),
+
+  changePassword: (current_password: string, new_password: string, confirm_password: string): Promise<{ message: string }> =>
+    apiClient
+      .post<{ message: string }>('/auth/password-change', { current_password, new_password, confirm_password })
       .then((res) => res.data),
 }

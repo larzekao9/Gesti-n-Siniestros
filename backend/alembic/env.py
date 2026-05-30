@@ -14,6 +14,11 @@ from app.models.base import Base
 from app.models.tenant import Tenant  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
+from app.models.audit_log import AuditLog  # noqa: F401
+from app.models.policyholder import Policyholder  # noqa: F401
+from app.models.policy import Policy  # noqa: F401
+from app.models.vehicle import Vehicle  # noqa: F401
+from app.models.password_reset_token import PasswordResetToken  # noqa: F401
 
 config = context.config
 

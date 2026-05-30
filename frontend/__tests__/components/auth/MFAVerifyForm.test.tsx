@@ -113,7 +113,7 @@ describe('MFAVerifyForm', () => {
   // Happy path
   // ----------------------------------------------------------------
   it('verificación exitosa actualiza mfa_enabled y redirige a /dashboard', async () => {
-    verifyMFAMock.mockResolvedValueOnce({ success: true })
+    verifyMFAMock.mockResolvedValueOnce({ message: 'MFA activado' })
 
     const user = userEvent.setup()
     render(<MFAVerifyForm />)
@@ -134,11 +134,11 @@ describe('MFAVerifyForm', () => {
   })
 
   // ----------------------------------------------------------------
-  // success: false
+  // error from API
   // ----------------------------------------------------------------
-  it('success:false muestra toast de código incorrecto', async () => {
+  it('error de API muestra toast de código incorrecto', async () => {
     const { toast } = await import('sonner')
-    verifyMFAMock.mockResolvedValueOnce({ success: false })
+    verifyMFAMock.mockRejectedValueOnce(new Error('Código inválido'))
 
     const user = userEvent.setup()
     render(<MFAVerifyForm />)

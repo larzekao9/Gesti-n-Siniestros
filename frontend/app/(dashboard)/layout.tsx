@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, LayoutDashboard, FileText, Users, BarChart3, LogOut, Shield } from 'lucide-react'
+import { Loader2, LayoutDashboard, FileText, Users, UserPlus, Clipboard, Car, User, BarChart3, LogOut, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 
@@ -19,9 +19,19 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
   },
   {
-    href: '/dashboard/siniestros',
-    label: 'Siniestros',
-    icon: FileText,
+    href: '/dashboard/asegurados',
+    label: 'Asegurados',
+    icon: UserPlus,
+  },
+  {
+    href: '/dashboard/polizas',
+    label: 'Pólizas',
+    icon: Clipboard,
+  },
+  {
+    href: '/dashboard/vehiculos',
+    label: 'Vehículos',
+    icon: Car,
   },
   {
     href: '/dashboard/usuarios',
@@ -33,6 +43,21 @@ const NAV_ITEMS = [
     href: '/dashboard/reportes',
     label: 'Reportes',
     icon: BarChart3,
+  },
+  {
+    href: '/dashboard/expedientes',
+    label: 'Expedientes',
+    icon: FileText,
+  },
+  {
+    href: '/dashboard/solicitudes',
+    label: 'Solicitudes',
+    icon: FileText,
+  },
+  {
+    href: '/dashboard/perfil',
+    label: 'Perfil',
+    icon: User,
   },
 ] satisfies Array<{
   href: string
@@ -49,12 +74,23 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { user, clearAuth, isLoading, setLoading } = useAuthStore()
+  const [hasHydrated, setHasHydrated] = useState(false)
+
+  // DT-15: esperar a que Zustand persist termine de hidratar antes de decidir
+  // si redirigir. Sin esto, al recargar la pagina `user` es null por un tick
+  // y el redirect se dispara antes de que se restaure desde localStorage.
+  // (DT-17: hot reload por polling de Webpack en docker-compose.override.yml)
+  useEffect(() => {
+    setHasHydrated(useAuthStore.persist.hasHydrated())
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHasHydrated(true))
+    return unsub
+  }, [])
 
   useEffect(() => {
-    if (!user) {
+    if (hasHydrated && !user) {
       router.replace('/login')
     }
-  }, [user, router])
+  }, [hasHydrated, user, router])
 
   const handleLogout = async () => {
     setLoading(true)
@@ -76,10 +112,10 @@ export default function DashboardLayout({
     }
   }
 
-  if (!user) {
+  if (!hasHydrated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-label="Redirigiendo..." />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-label={hasHydrated ? 'Redirigiendo...' : 'Restaurando sesion...'} />
       </div>
     )
   }

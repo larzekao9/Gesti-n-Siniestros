@@ -12,6 +12,7 @@ export interface TokenResponse {
   refresh_token: string
   token_type: string
   user: User
+  mfa_required?: boolean
 }
 
 export interface LoginRequest {
@@ -34,7 +35,7 @@ export interface MFASetupResponse {
 }
 
 export interface MFAVerifyResponse {
-  success: boolean
+  message: string
 }
 
 export interface RefreshResponse {
