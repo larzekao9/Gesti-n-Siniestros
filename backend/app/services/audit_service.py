@@ -14,6 +14,7 @@ class AuditService:
         self,
         db: AsyncSession,
         *,
+        tenant_id: UUID,
         action: str,
         entity_type: str,
         entity_id: UUID | None = None,
@@ -23,6 +24,7 @@ class AuditService:
         user_agent: str | None = None,
     ) -> AuditLog:
         log = AuditLog(
+            tenant_id=tenant_id,
             actor_user_id=actor_user_id,
             action=action,
             entity_type=entity_type,
@@ -32,6 +34,5 @@ class AuditService:
             user_agent=user_agent,
         )
         db.add(log)
-        # flush to get the server-default tenant_id populated if using TenantMixin
         await db.flush()
         return log

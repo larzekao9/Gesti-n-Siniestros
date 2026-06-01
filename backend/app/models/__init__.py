@@ -9,6 +9,11 @@ from app.models.policyholder import Policyholder
 from app.models.policy import Policy
 from app.models.vehicle import Vehicle
 from app.models.password_reset_token import PasswordResetToken
+from app.models.claim_request import ClaimRequest, ClaimRequestStatus
+from app.models.claim import Claim, ClaimStatus, ClaimSource, ClaimDecision
+from app.models.state_transition import StateTransition, SubjectType
+from app.models.observation import Observation
+from app.models.third_party import ThirdParty, ThirdPartyKind
 
 __all__ = [
     "Base",
@@ -23,4 +28,15 @@ __all__ = [
     "Policy",
     "Vehicle",
     "PasswordResetToken",
+    "ClaimRequest",
+    "ClaimRequestStatus",
+    "Claim",
+    "ClaimStatus",
+    "ClaimSource",
+    "ClaimDecision",
+    "StateTransition",
+    "SubjectType",
+    "Observation",
+    "ThirdParty",
+    "ThirdPartyKind",
 ]
