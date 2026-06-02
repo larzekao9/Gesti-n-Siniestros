@@ -8,8 +8,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { claimRequestsApi } from '@/lib/api/claim-requests'
+import { evidencesApi } from '@/lib/api/evidences'
+import EvidenceUploader from '@/components/claims/EvidenceUploader'
+import EvidenceGallery from '@/components/claims/EvidenceGallery'
 import type { ClaimRequest } from '@/types/claim-request'
 import type { FormalizeResponse } from '@/types/claim'
+import type { Evidence } from '@/types/evidence'
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: 'Borrador', color: 'bg-gray-100 text-gray-700' },
@@ -29,6 +33,8 @@ export default function ClaimRequestDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [formalizedClaim, setFormalizedClaim] = useState<FormalizeResponse | null>(null)
+  const [evidences, setEvidences] = useState<Evidence[]>([])
+  const [eviLoading, setEviLoading] = useState(false)
 
   useEffect(() => {
     claimRequestsApi
@@ -36,6 +42,8 @@ export default function ClaimRequestDetailPage() {
       .then(setRequest)
       .catch(() => setError('No se pudo cargar la solicitud'))
       .finally(() => setLoading(false))
+    setEviLoading(true)
+    evidencesApi.listForRequest(id).then((r) => setEvidences(r.items)).catch(() => {}).finally(() => setEviLoading(false))
   }, [id])
 
   const handleTake = async () => {
@@ -134,6 +142,16 @@ export default function ClaimRequestDetailPage() {
           </dl>
         </CardContent>
       </Card>
+
+      {request.status !== 'formalized' && request.status !== 'rejected_at_intake' && (
+        <Card>
+          <CardHeader><CardTitle>Evidencias</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <EvidenceUploader subjectType="claim_request" subjectId={id} onUploaded={(ev) => setEvidences((p) => [ev, ...p])} />
+            <EvidenceGallery items={evidences} loading={eviLoading} />
+          </CardContent>
+        </Card>
+      )}
 
       {formalizedClaim && (
         <Card className="border-green-300 bg-green-50">

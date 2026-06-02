@@ -3,6 +3,27 @@
 # No usar en staging ni producción.
 
 services:
+  # ─── S3 local para desarrollo (LocalStack) ──────────────────────────────
+  localstack:
+    image: localstack/localstack:4
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - PERSISTENCE=0
+      - LS_LOG=warn
+    volumes:
+      - localstack_data:/var/lib/localstack
+    networks:
+      - siniestros-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   backend:
     build:
       target: runner
@@ -16,6 +37,14 @@ services:
       # eventos inotify. Uvicorn usa watchfiles (rust) que soporta polling
       # via esta variable. Sin esto, --reload no detecta cambios en .py.
       - WATCHFILES_FORCE_POLLING=true
+      # S3 / LocalStack overrides:
+      # - INTERNAL endpoint (server-side ops) → hostname resolvible en la red docker
+      # - PUBLIC endpoint (firma de presigned URLs) → hostname accesible desde el browser del usuario
+      - AWS_S3_ENDPOINT=http://localstack:4566
+      - AWS_S3_PUBLIC_ENDPOINT=http://localhost:4566
+    depends_on:
+      localstack:
+        condition: service_healthy
 
   celery-worker:
     build:
@@ -44,3 +73,7 @@ services:
       # watchers (TypeScript, dotenv, etc.).
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
+
+volumes:
+  localstack_data:
+    driver: local

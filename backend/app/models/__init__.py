@@ -14,6 +14,9 @@ from app.models.claim import Claim, ClaimStatus, ClaimSource, ClaimDecision
 from app.models.state_transition import StateTransition, SubjectType
 from app.models.observation import Observation
 from app.models.third_party import ThirdParty, ThirdPartyKind
+from app.models.evidence import Evidence, EvidenceType
+from app.models.document_request import DocumentRequest, DocumentRequestStatus
+from app.models.traffic_report import TrafficReport
 
 __all__ = [
     "Base",
@@ -39,4 +42,9 @@ __all__ = [
     "Observation",
     "ThirdParty",
     "ThirdPartyKind",
+    "Evidence",
+    "EvidenceType",
+    "DocumentRequest",
+    "DocumentRequestStatus",
+    "TrafficReport",
 ]

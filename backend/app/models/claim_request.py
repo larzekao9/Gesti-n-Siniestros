@@ -33,7 +33,9 @@ class ClaimRequest(TenantMixin, TimestampMixin, Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     request_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     status: Mapped[ClaimRequestStatus] = mapped_column(
-        SQLEnum(ClaimRequestStatus), default=ClaimRequestStatus.DRAFT, nullable=False
+        SQLEnum(ClaimRequestStatus, values_callable=lambda x: [e.value for e in x]),
+        default=ClaimRequestStatus.DRAFT,
+        nullable=False,
     )
     policyholder_id: Mapped[UUID] = mapped_column(
         ForeignKey("policyholders.id", ondelete="CASCADE"), nullable=False

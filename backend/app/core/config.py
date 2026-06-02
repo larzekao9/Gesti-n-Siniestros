@@ -21,5 +21,19 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     ENVIRONMENT: str = "development"
 
+    # ── S3 / LocalStack ───────────────────────────────────────────
+    AWS_ACCESS_KEY_ID: str = "test"
+    AWS_SECRET_ACCESS_KEY: str = "test"
+    AWS_REGION: str = "us-east-1"
+    # Internal endpoint: used for server-side ops (head_bucket, create_bucket).
+    # In docker: http://localstack:4566 (resolved inside compose network).
+    AWS_S3_ENDPOINT: str = "http://localhost:4566"
+    # Browser-facing endpoint: used to SIGN presigned URLs that the user's
+    # browser will hit. In docker, the internal hostname `localstack` is not
+    # resolvable from the host machine, so presigned URLs must use `localhost`.
+    # Leave as None in production (same endpoint serves both roles).
+    AWS_S3_PUBLIC_ENDPOINT: str | None = None
+    AWS_S3_BUCKET: str = "siniestros-evidencias"
+
 
 settings = Settings()

@@ -79,7 +79,6 @@ export default function DashboardLayout({
   // DT-15: esperar a que Zustand persist termine de hidratar antes de decidir
   // si redirigir. Sin esto, al recargar la pagina `user` es null por un tick
   // y el redirect se dispara antes de que se restaure desde localStorage.
-  // (DT-17: hot reload por polling de Webpack en docker-compose.override.yml)
   useEffect(() => {
     setHasHydrated(useAuthStore.persist.hasHydrated())
     const unsub = useAuthStore.persist.onFinishHydration(() => setHasHydrated(true))

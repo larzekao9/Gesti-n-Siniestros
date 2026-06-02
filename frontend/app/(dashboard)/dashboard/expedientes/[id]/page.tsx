@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowLeft } from 'lucide-react'
 import { claimsApi } from '@/lib/api/claims'
+import { evidencesApi } from '@/lib/api/evidences'
+import { documentRequestsApi } from '@/lib/api/document-requests'
+import { trafficReportsApi } from '@/lib/api/traffic-reports'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
@@ -12,9 +15,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import EvidenceUploader from '@/components/claims/EvidenceUploader'
+import EvidenceGallery from '@/components/claims/EvidenceGallery'
 import type { Claim } from '@/types/claim'
 import type { Observation } from '@/types/observation'
 import type { ThirdParty } from '@/types/third-party'
+import type { Evidence } from '@/types/evidence'
+import type { DocumentRequest } from '@/types/document-request'
+import type { TrafficReport } from '@/types/traffic-report'
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   registered: { label: 'Registrado', color: 'bg-gray-100 text-gray-700' },
@@ -29,12 +37,22 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 const TRANSITIONS: Record<string, string[]> = {
   registered: ['in_review'],
-  in_review: ['observed', 'in_evaluation'],
-  observed: ['in_review', 'in_evaluation'],
+  in_review: ['observed', 'in_evaluation', 'docs_pending'],
+  observed: ['in_review', 'in_evaluation', 'docs_pending'],
+  docs_pending: ['in_review'],
   in_evaluation: ['approved', 'rejected'],
   approved: ['closed'],
   rejected: ['closed'],
 }
+
+// Mantener sincronizado con WorkflowService._REASON_REQUIRED_PAIRS en backend.
+const REASON_REQUIRED = new Set([
+  'in_review->observed',
+  'in_evaluation->approved',
+  'in_evaluation->rejected',
+])
+const reasonRequired = (current: string, target: string) =>
+  REASON_REQUIRED.has(`${current}->${target}`)
 
 const TP_KINDS = [
   { value: '', label: 'Seleccionar tipo' },
@@ -71,12 +89,27 @@ export default function ExpedienteDetailPage() {
   const [tpForm, setTpForm] = useState({ ...EMPTY_TP })
   const [editingTpId, setEditingTpId] = useState<string | null>(null)
   const [tpSubmitting, setTpSubmitting] = useState(false)
+  const [evidences, setEvidences] = useState<Evidence[]>([])
+  const [eviLoading, setEviLoading] = useState(false)
+  const [docRequests, setDocRequests] = useState<DocumentRequest[]>([])
+  const [drLoading, setDrLoading] = useState(false)
+  const [drDesc, setDrDesc] = useState('')
+  const [drSubmitting, setDrSubmitting] = useState(false)
+  const [showDrDialog, setShowDrDialog] = useState(false)
+  const [trafficReports, setTrafficReports] = useState<TrafficReport[]>([])
+  const [trLoading, setTrLoading] = useState(false)
+  const [trForm, setTrForm] = useState({ officer_name: '', report_code: '', jurisdiction: '', report_date: '', summary: '' })
+  const [trSubmitting, setTrSubmitting] = useState(false)
+  const [editingTrId, setEditingTrId] = useState<string | null>(null)
 
   useEffect(() => { claimsApi.get(id).then(setClaim).catch(() => setError('No se pudo cargar el expediente')).finally(() => setLoading(false)) }, [id])
 
   useEffect(() => {
     if (activeTab === 1 && observations.length === 0) { setObsLoading(true); claimsApi.listObservations(id).then((r) => setObservations(r.items)).catch(() => toast.error('Error al cargar observaciones')).finally(() => setObsLoading(false)) }
     if (activeTab === 2 && thirdParties.length === 0) { setTpLoading(true); claimsApi.listThirdParties(id).then((r) => setThirdParties(r.items)).catch(() => toast.error('Error al cargar terceros')).finally(() => setTpLoading(false)) }
+    if (activeTab === 3 && evidences.length === 0) { setEviLoading(true); evidencesApi.listForClaim(id).then((r) => setEvidences(r.items)).catch(() => toast.error('Error al cargar evidencias')).finally(() => setEviLoading(false)) }
+    if (activeTab === 4 && docRequests.length === 0) { setDrLoading(true); documentRequestsApi.listForClaim(id).then((r) => setDocRequests(r.items)).catch(() => toast.error('Error al cargar solicitudes')).finally(() => setDrLoading(false)) }
+    if (activeTab === 5 && trafficReports.length === 0) { setTrLoading(true); trafficReportsApi.listForClaim(id).then((r) => setTrafficReports(r.items)).catch(() => toast.error('Error al cargar tránsito')).finally(() => setTrLoading(false)) }
   }, [activeTab])
 
   const handleStatusChange = async () => {
@@ -144,6 +177,81 @@ export default function ExpedienteDetailPage() {
     } catch { toast.error('Error al eliminar tercero') }
   }
 
+  const handleEvidenceUploaded = (ev: Evidence) => {
+    setEvidences((p) => [ev, ...p])
+  }
+
+  const handleCreateDocRequest = async () => {
+    if (!drDesc.trim()) return
+    setDrSubmitting(true)
+    try {
+      const dr = await documentRequestsApi.create(id, { description: drDesc.trim() })
+      setDocRequests((p) => [dr, ...p])
+      setDrDesc('')
+      setShowDrDialog(false)
+      toast.success('Solicitud de documentación creada')
+    } catch { toast.error('Error al crear solicitud') }
+    finally { setDrSubmitting(false) }
+  }
+
+  const handleSubmitDocRequest = async (drId: string) => {
+    try {
+      const updated = await documentRequestsApi.submit(drId)
+      setDocRequests((p) => p.map((d) => (d.id === drId ? updated : d)))
+      toast.success('Documentación marcada como entregada')
+    } catch { toast.error('Error al actualizar solicitud') }
+  }
+
+  const handleWaiveDocRequest = async (drId: string) => {
+    try {
+      const updated = await documentRequestsApi.waive(drId)
+      setDocRequests((p) => p.map((d) => (d.id === drId ? updated : d)))
+      toast.success('Solicitud eximida')
+    } catch { toast.error('Error al actualizar solicitud') }
+  }
+
+  const handleSaveTr = async () => {
+    setTrSubmitting(true)
+    try {
+      const payload = {
+        officer_name: trForm.officer_name || undefined,
+        report_code: trForm.report_code || undefined,
+        jurisdiction: trForm.jurisdiction || undefined,
+        report_date: trForm.report_date || undefined,
+        summary: trForm.summary || undefined,
+      }
+      if (editingTrId) {
+        const updated = await trafficReportsApi.update(editingTrId, payload)
+        setTrafficReports((p) => p.map((t) => (t.id === editingTrId ? updated : t)))
+        toast.success('Informe de tránsito actualizado')
+      } else {
+        const created = await trafficReportsApi.create(id, payload)
+        setTrafficReports((p) => [...p, created])
+        toast.success('Informe de tránsito registrado')
+      }
+      setTrForm({ officer_name: '', report_code: '', jurisdiction: '', report_date: '', summary: '' })
+      setEditingTrId(null)
+    } catch { toast.error('Error al guardar informe de tránsito') }
+    finally { setTrSubmitting(false) }
+  }
+
+  const handleDeleteTr = async (trId: string) => {
+    if (!window.confirm('¿Eliminar este informe de tránsito?')) return
+    try {
+      await trafficReportsApi.delete(trId)
+      setTrafficReports((p) => p.filter((t) => t.id !== trId))
+      if (editingTrId === trId) { setTrForm({ officer_name: '', report_code: '', jurisdiction: '', report_date: '', summary: '' }); setEditingTrId(null) }
+      toast.success('Informe eliminado')
+    } catch { toast.error('Error al eliminar') }
+  }
+
+  const editTr = (tr: TrafficReport) => {
+    setEditingTrId(tr.id)
+    setTrForm({ officer_name: tr.officer_name || '', report_code: tr.report_code || '', jurisdiction: tr.jurisdiction || '', report_date: tr.report_date || '', summary: tr.summary || '' })
+  }
+
+  const DR_STATUS: Record<string, string> = { pending: 'Pendiente', submitted: 'Entregado', waived: 'Eximido' }
+
   const editTp = (tp: ThirdParty) => {
     setEditingTpId(tp.id)
     setTpForm({ kind: tp.kind, full_name: tp.full_name, document_id: tp.document_id || '', contact_phone: tp.contact_phone || '', vehicle_plate: tp.vehicle_plate || '', vehicle_info: tp.vehicle_info || '', statement: tp.statement || '' })
@@ -169,7 +277,7 @@ export default function ExpedienteDetailPage() {
         {allowed.length > 0 && <Button onClick={() => setStatusOpen(true)}>Cambiar Estado</Button>}
       </div>
       <div className="flex border-b border-slate-200">
-        {['Resumen', 'Observaciones', 'Terceros'].map((tab, i) => (
+        {['Resumen', 'Observaciones', 'Terceros', 'Evidencias', 'Documentación', 'Tránsito'].map((tab, i) => (
           <button key={tab} onClick={() => setActiveTab(i)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === i ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {tab}
@@ -289,15 +397,125 @@ export default function ExpedienteDetailPage() {
           )}
         </div>
       )}
+      {activeTab === 3 && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>Subir evidencias</CardTitle></CardHeader>
+            <CardContent>
+              <EvidenceUploader subjectType="claim" subjectId={id} showPeritajeFields onUploaded={handleEvidenceUploaded} />
+            </CardContent>
+          </Card>
+          <EvidenceGallery items={evidences} loading={eviLoading} />
+        </div>
+      )}
+      {activeTab === 4 && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-600">Solicitudes de documentación al asegurado</p>
+            <Button size="sm" onClick={() => setShowDrDialog(true)}>Nueva solicitud</Button>
+          </div>
+          {drLoading ? <p className="text-slate-500 text-center py-8">Cargando...</p> : docRequests.length === 0 ? <p className="text-slate-400 text-center py-8">Sin solicitudes de documentación</p> : (
+            <div className="space-y-3">
+              {docRequests.map((dr) => (
+                <Card key={dr.id}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm whitespace-pre-wrap">{dr.description}</p>
+                        <div className="flex gap-2 mt-1 text-xs text-slate-400">
+                          <span>{DR_STATUS[dr.status] || dr.status}</span>
+                          <span>&middot;</span>
+                          <span>{new Date(dr.created_at).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {dr.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleSubmitDocRequest(dr.id)}>Entregado</Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleWaiveDocRequest(dr.id)}>Eximir</Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+          <Dialog open={showDrDialog} onClose={() => setShowDrDialog(false)} title="Solicitar documentación">
+            <div className="space-y-4">
+              <div><Label>Descripción de lo solicitado</Label><Textarea value={drDesc} onChange={(e) => setDrDesc(e.target.value)} placeholder="Ej: Adjuntar factura del taller mecánico..." rows={4} /></div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowDrDialog(false)}>Cancelar</Button>
+                <Button onClick={handleCreateDocRequest} disabled={drSubmitting || !drDesc.trim()}>{drSubmitting ? '...' : 'Crear solicitud'}</Button>
+              </div>
+            </div>
+          </Dialog>
+        </div>
+      )}
+      {activeTab === 5 && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>{editingTrId ? 'Editar informe de tránsito' : 'Registrar informe de tránsito'}</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Oficial</Label><Input value={trForm.officer_name} onChange={(e) => setTrForm({ ...trForm, officer_name: e.target.value })} placeholder="Nombre del oficial" /></div>
+                <div><Label>Código de acta</Label><Input value={trForm.report_code} onChange={(e) => setTrForm({ ...trForm, report_code: e.target.value })} placeholder="ACT-2026-..." /></div>
+                <div><Label>Jurisdicción</Label><Input value={trForm.jurisdiction} onChange={(e) => setTrForm({ ...trForm, jurisdiction: e.target.value })} placeholder="Ej: La Paz" /></div>
+                <div><Label>Fecha del acta</Label><Input type="date" value={trForm.report_date} onChange={(e) => setTrForm({ ...trForm, report_date: e.target.value })} /></div>
+              </div>
+              <div><Label>Resumen</Label><Textarea value={trForm.summary} onChange={(e) => setTrForm({ ...trForm, summary: e.target.value })} placeholder="Resumen del acta de tránsito..." rows={3} /></div>
+              <p className="text-xs text-slate-400">Para adjuntar el archivo del acta, usá la pestaña "Evidencias" con tipo "Acta de tránsito".</p>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveTr} disabled={trSubmitting}>{trSubmitting ? 'Guardando...' : editingTrId ? 'Actualizar' : 'Registrar'}</Button>
+                {editingTrId && <Button variant="ghost" onClick={() => { setTrForm({ officer_name: '', report_code: '', jurisdiction: '', report_date: '', summary: '' }); setEditingTrId(null) }}>Cancelar</Button>}
+              </div>
+            </CardContent>
+          </Card>
+          {trLoading ? <p className="text-slate-500 text-center py-8">Cargando...</p> : trafficReports.length === 0 ? <p className="text-slate-400 text-center py-8">Sin informes de tránsito</p> : (
+            <div className="space-y-3">
+              {trafficReports.map((tr) => (
+                <Card key={tr.id}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{tr.officer_name || 'Sin oficial registrado'}</span>
+                          {tr.report_code && <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">{tr.report_code}</span>}
+                        </div>
+                        <div className="text-sm text-slate-500 mt-1 space-y-0.5">
+                          {tr.jurisdiction && <p>Jurisdicción: {tr.jurisdiction}</p>}
+                          {tr.report_date && <p>Fecha: {tr.report_date}</p>}
+                          {tr.summary && <p className="mt-1">{tr.summary}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => editTr(tr)}>Editar</Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDeleteTr(tr.id)}>Eliminar</Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <Dialog open={statusOpen} onClose={() => setStatusOpen(false)} title="Cambiar estado">
         <div className="space-y-4">
           <div><Label>Estado actual</Label><p className="text-sm font-medium mt-1">{status.label}</p></div>
           <div><Label>Nuevo estado</Label><Select options={[{ value: '', label: 'Seleccionar estado' }, ...allowed.map((s) => ({ value: s, label: STATUS_MAP[s]?.label || s }))]} value={newStatus} onChange={(e) => setNewStatus(e.target.value)} /></div>
-          <div><Label>Motivo (opcional)</Label><Textarea value={statusReason} onChange={(e) => setStatusReason(e.target.value)} placeholder="Motivo del cambio de estado..." rows={3} /></div>
+          {(() => {
+            const required = newStatus && reasonRequired(claim.status, newStatus)
+            return (
+              <div>
+                <Label>Motivo {required ? <span className="text-red-600">(requerido)</span> : '(opcional)'}</Label>
+                <Textarea value={statusReason} onChange={(e) => setStatusReason(e.target.value)} placeholder={required ? 'Justifica esta decisión...' : 'Motivo del cambio de estado...'} rows={3} />
+              </div>
+            )
+          })()}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setStatusOpen(false)}>Cancelar</Button>
-            <Button onClick={handleStatusChange} disabled={statusSubmitting || !newStatus}>{statusSubmitting ? 'Guardando...' : 'Confirmar cambio'}</Button>
+            <Button onClick={handleStatusChange} disabled={statusSubmitting || !newStatus || (reasonRequired(claim.status, newStatus) && !statusReason.trim())}>{statusSubmitting ? 'Guardando...' : 'Confirmar cambio'}</Button>
           </div>
         </div>
       </Dialog>

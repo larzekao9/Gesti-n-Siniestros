@@ -292,7 +292,11 @@ class ClaimService:
 
         await db.flush()
 
-        # TODO Ciclo 4: promote evidences — add claim_id to evidences with claim_request_id=cr.id
+        # Promote evidences from claim_request to claim
+        from app.services.evidence_service import evidence_service
+        await evidence_service.promote_request_evidences_to_claim(
+            db, claim_request_id=cr.id, claim_id=claim.id, tenant_id=tenant_id
+        )
 
         await audit_service.write(
             db,
@@ -325,12 +329,19 @@ class ClaimService:
 
         from app.models.claim import ClaimStatus as CS
         from app.services.workflow_service import WorkflowService
+        from app.services.document_request_service import document_request_service
 
         wf = WorkflowService()
         current = CS(claim.status)
         target = CS(new_status)
 
-        wf.validate_claim_transition(current=current, target=target)
+        has_docs = await document_request_service.has_pending_requests(
+            db, claim_id=claim_id, tenant_id=tenant_id
+        )
+
+        wf.validate_claim_transition(
+            current=current, target=target, has_document_requests=has_docs
+        )
 
         if wf.transitions_require_reason(current, target) and not reason:
             raise ValidationError("Se requiere motivo para esta transición")

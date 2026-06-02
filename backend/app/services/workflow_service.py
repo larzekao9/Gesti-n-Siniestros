@@ -128,14 +128,17 @@ class WorkflowService:
             allowed = allowed - {ClaimStatus.DOCS_PENDING}
         return sorted(allowed, key=lambda s: s.value)
 
+    # Transiciones donde el motivo es obligatorio (auditoría / justificación).
+    # Mantener sincronizado con la constante REASON_REQUIRED en el frontend.
+    _REASON_REQUIRED_PAIRS: frozenset[tuple[ClaimStatus, ClaimStatus]] = frozenset({
+        # Marcar observado exige describir qué se observó.
+        (ClaimStatus.IN_REVIEW, ClaimStatus.OBSERVED),
+        # Decisiones finales requieren justificación.
+        (ClaimStatus.IN_EVALUATION, ClaimStatus.APPROVED),
+        (ClaimStatus.IN_EVALUATION, ClaimStatus.REJECTED),
+    })
+
     @staticmethod
     def transitions_require_reason(current: ClaimStatus, target: ClaimStatus) -> bool:
         """Whether a reason is required for this transition."""
-        reason_required_pairs = {
-            (ClaimStatus.REGISTERED, ClaimStatus.IN_REVIEW),
-            (ClaimStatus.IN_REVIEW, ClaimStatus.OBSERVED),
-            (ClaimStatus.OBSERVED, ClaimStatus.IN_REVIEW),
-            (ClaimStatus.IN_EVALUATION, ClaimStatus.APPROVED),
-            (ClaimStatus.IN_EVALUATION, ClaimStatus.REJECTED),
-        }
-        return (current, target) in reason_required_pairs
+        return (current, target) in WorkflowService._REASON_REQUIRED_PAIRS

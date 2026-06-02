@@ -31,7 +31,8 @@ class ThirdParty(TenantMixin, TimestampMixin, Base):
         ForeignKey("claims.id", ondelete="CASCADE"), nullable=False
     )
     kind: Mapped[ThirdPartyKind] = mapped_column(
-        SQLEnum(ThirdPartyKind), nullable=False
+        SQLEnum(ThirdPartyKind, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
     )
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     document_id: Mapped[str | None] = mapped_column(String(20), nullable=True)

@@ -60,10 +60,14 @@ class Claim(TenantMixin, TimestampMixin, Base):
         ForeignKey("vehicles.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[ClaimStatus] = mapped_column(
-        SQLEnum(ClaimStatus), default=ClaimStatus.REGISTERED, nullable=False
+        SQLEnum(ClaimStatus, values_callable=lambda x: [e.value for e in x]),
+        default=ClaimStatus.REGISTERED,
+        nullable=False,
     )
     source: Mapped[ClaimSource] = mapped_column(
-        SQLEnum(ClaimSource), default=ClaimSource.INTERNAL, nullable=False
+        SQLEnum(ClaimSource, values_callable=lambda x: [e.value for e in x]),
+        default=ClaimSource.INTERNAL,
+        nullable=False,
     )
     accident_date: Mapped[date] = mapped_column(Date, nullable=False)
     accident_time: Mapped[time | None] = mapped_column(Time, nullable=True)
@@ -83,7 +87,8 @@ class Claim(TenantMixin, TimestampMixin, Base):
     )
     fraud_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
     decision: Mapped[ClaimDecision | None] = mapped_column(
-        SQLEnum(ClaimDecision), nullable=True
+        SQLEnum(ClaimDecision, values_callable=lambda x: [e.value for e in x]),
+        nullable=True,
     )
     decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     decided_by_user_id: Mapped[UUID | None] = mapped_column(
