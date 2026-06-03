@@ -104,6 +104,38 @@ async def get_current_tenant(
     return tenant
 
 
+class AuditScope:
+    """Resolved audit-log visibility for the current user (CU-31).
+
+    - ``admin``: vista global, todos los eventos (incluidos los sensibles).
+    - ``supervisor``: eventos del tenant, ocultando los sensibles (LOGIN/PASSWORD/MFA).
+    - ``analyst``: solo su propia actividad (``actor_user_id == self``), sin sensibles.
+    """
+
+    def __init__(self, user: User) -> None:
+        self.user = user
+        if user.role == Role.ADMIN:
+            self.exclude_sensitive = False
+            self.restrict_to_actor: UUID | None = None
+        elif user.role == Role.SUPERVISOR:
+            self.exclude_sensitive = True
+            self.restrict_to_actor = None
+        else:  # ANALYST
+            self.exclude_sensitive = True
+            self.restrict_to_actor = user.id
+
+
+def require_audit_access(
+    current_user: User = Depends(get_current_user),
+) -> AuditScope:
+    """Return the audit visibility scope for the authenticated user (CU-31).
+
+    Cualquier usuario interno autenticado puede consultar la bitácora, pero el
+    alcance de lo que ve depende de su rol (ver :class:`AuditScope`).
+    """
+    return AuditScope(current_user)
+
+
 def require_role(*roles: Role) -> Depends:
     """Return a FastAPI dependency that enforces one of the given roles.
 

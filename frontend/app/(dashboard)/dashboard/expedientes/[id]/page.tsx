@@ -20,6 +20,7 @@ import EvidenceGallery from '@/components/claims/EvidenceGallery'
 import AssignAnalystDialog from '@/components/claims/AssignAnalystDialog'
 import EscalateDialog from '@/components/claims/EscalateDialog'
 import DecisionPanel from '@/components/claims/DecisionPanel'
+import AuditTimeline from '@/components/audit/AuditTimeline'
 import { useAuthStore } from '@/lib/stores/authStore'
 import type { Claim } from '@/types/claim'
 import type { Observation } from '@/types/observation'
@@ -305,7 +306,7 @@ export default function ExpedienteDetailPage() {
         </div>
       </div>
       <div className="flex border-b border-slate-200">
-        {['Resumen', 'Observaciones', 'Terceros', 'Evidencias', 'Documentación', 'Tránsito'].map((tab, i) => (
+        {['Resumen', 'Observaciones', 'Terceros', 'Evidencias', 'Documentación', 'Tránsito', 'Auditoría'].map((tab, i) => (
           <button key={tab} onClick={() => setActiveTab(i)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === i ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {tab}
@@ -525,6 +526,18 @@ export default function ExpedienteDetailPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* CU-31: bitácora de auditoría del expediente */}
+      {activeTab === 6 && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Bitácora de auditoría</CardTitle></CardHeader>
+            <CardContent>
+              <AuditTimeline entityType="claim" entityId={id} />
+            </CardContent>
+          </Card>
         </div>
       )}
 

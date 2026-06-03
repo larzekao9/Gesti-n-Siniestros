@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, LayoutDashboard, FileText, Users, UserPlus, Clipboard, Car, User, BarChart3, LogOut, Shield, Inbox } from 'lucide-react'
+import { Loader2, LayoutDashboard, FileText, Users, UserPlus, Clipboard, Car, User, BarChart3, LogOut, Shield, Inbox, ScrollText } from 'lucide-react'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 
@@ -60,6 +60,12 @@ const NAV_ITEMS = [
     href: '/dashboard/solicitudes',
     label: 'Solicitudes',
     icon: FileText,
+  },
+  {
+    href: '/dashboard/admin/auditoria',
+    label: 'Auditoría',
+    icon: ScrollText,
+    roles: ['admin'] as const,
   },
   {
     href: '/dashboard/perfil',
