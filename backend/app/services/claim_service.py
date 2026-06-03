@@ -13,6 +13,8 @@ from app.models.state_transition import StateTransition, SubjectType
 from app.models.policyholder import Policyholder
 from app.models.policy import Policy
 from app.models.vehicle import Vehicle
+from app.models.user import Role, User
+from app.models.notification import NotificationKind
 from app.services.audit_service import AuditService
 from app.services.exceptions import (
     ConflictError,
@@ -22,6 +24,7 @@ from app.services.exceptions import (
 )
 from app.services.policy_service import PolicyService
 from app.services.vehicle_service import VehicleService
+from app.services.notification_service import notification_service
 
 audit_service = AuditService()
 policy_service = PolicyService()
@@ -383,6 +386,7 @@ class ClaimService:
         from_date: date | None = None,
         to_date: date | None = None,
         analyst_id: str | None = None,
+        supervisor_id: str | None = None,
         policyholder_id: str | None = None,
         page: int = 1,
         limit: int = 20,
@@ -398,6 +402,8 @@ class ClaimService:
             query = query.where(Claim.accident_date <= to_date)
         if analyst_id:
             query = query.where(Claim.assigned_analyst_id == UUID(analyst_id))
+        if supervisor_id:
+            query = query.where(Claim.supervisor_id == UUID(supervisor_id))
         if policyholder_id:
             query = query.where(Claim.policyholder_id == UUID(policyholder_id))
         if q:
@@ -414,3 +420,260 @@ class ClaimService:
         query = query.order_by(Claim.created_at.desc()).offset(offset).limit(limit)
         result = await db.execute(query)
         return list(result.scalars().all()), total
+
+    # ── CU-26: Assign / reassign analyst ───────────────────────────
+
+    async def assign_analyst(
+        self,
+        db: AsyncSession,
+        *,
+        claim_id: UUID,
+        tenant_id: UUID,
+        new_analyst_user_id: UUID,
+        actor_user_id: UUID,
+        reason: str | None = None,
+    ) -> Claim:
+        claim = await self.get_claim(db, claim_id=claim_id, tenant_id=tenant_id)
+
+        if claim.status == ClaimStatus.CLOSED:
+            raise ConflictError("No se puede reasignar un expediente cerrado")
+
+        # Validate target user belongs to tenant and has analyst role
+        target_user = await db.execute(
+            select(User).where(
+                User.id == new_analyst_user_id,
+                User.tenant_id == tenant_id,
+                User.is_active == True,
+            )
+        )
+        target_user = target_user.scalar_one_or_none()
+        if target_user is None:
+            raise NotFoundError("Usuario destino no encontrado")
+        if target_user.role != Role.ANALYST:
+            raise ValidationError("El usuario destino debe tener rol de analista")
+
+        old_analyst_id = claim.assigned_analyst_id
+        claim.assigned_analyst_id = new_analyst_user_id
+
+        await db.flush()
+
+        # Notify new analyst
+        await notification_service.create(
+            db,
+            tenant_id=tenant_id,
+            recipient_user_id=new_analyst_user_id,
+            entity_type="claim",
+            entity_id=claim.id,
+            kind=NotificationKind.ASSIGNED,
+            title="Expediente asignado",
+            body=f"Se te ha asignado el expediente {claim.claim_number}",
+        )
+
+        # Notify previous analyst if different from actor
+        if old_analyst_id and old_analyst_id != actor_user_id:
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_user_id=old_analyst_id,
+                entity_type="claim",
+                entity_id=claim.id,
+                kind=NotificationKind.ASSIGNED,
+                title="Expediente reasignado",
+                body=f"El expediente {claim.claim_number} fue reasignado a otro analista",
+            )
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="REASSIGN_ANALYST",
+            entity_type="claim",
+            entity_id=claim.id,
+            actor_user_id=actor_user_id,
+            payload_diff={
+                "from_analyst": str(old_analyst_id) if old_analyst_id else None,
+                "to_analyst": str(new_analyst_user_id),
+                "reason": reason,
+            },
+        )
+        await db.refresh(claim)
+        return claim
+
+    # ── CU-19: Escalate to supervisor ─────────────────────────────
+
+    async def escalate(
+        self,
+        db: AsyncSession,
+        *,
+        claim_id: UUID,
+        tenant_id: UUID,
+        supervisor_user_id: UUID,
+        reason: str,
+        actor_user_id: UUID,
+    ) -> Claim:
+        claim = await self.get_claim(db, claim_id=claim_id, tenant_id=tenant_id)
+
+        if claim.supervisor_id is not None:
+            raise ConflictError("El expediente ya fue escalado")
+
+        if claim.status not in (
+            ClaimStatus.IN_EVALUATION,
+            ClaimStatus.OBSERVED,
+            ClaimStatus.IN_REVIEW,
+        ):
+            raise ConflictError(
+                f"No se puede escalar en estado '{claim.status.value}'"
+            )
+
+        # Validate supervisor belongs to tenant and has supervisor or admin role
+        supervisor = await db.execute(
+            select(User).where(
+                User.id == supervisor_user_id,
+                User.tenant_id == tenant_id,
+                User.is_active == True,
+            )
+        )
+        supervisor = supervisor.scalar_one_or_none()
+        if supervisor is None:
+            raise NotFoundError("Supervisor no encontrado")
+        if supervisor.role not in (Role.SUPERVISOR, Role.ADMIN):
+            raise ValidationError("El usuario destino debe ser supervisor o admin")
+
+        # Escalar implica transicionar a in_evaluation para que el supervisor decida
+        # (Context.md §6.5 flujo: in_review/observed → escalado → in_evaluation → approved/rejected).
+        # La transición está permitida desde in_review y observed por el workflow normal;
+        # cuando el origen ya es in_evaluation se mantiene (no es transición real).
+        from app.services.workflow_service import WorkflowService
+        wf = WorkflowService()
+        from_status = claim.status
+        if claim.status in (ClaimStatus.IN_REVIEW, ClaimStatus.OBSERVED):
+            wf.validate_claim_transition(
+                current=claim.status, target=ClaimStatus.IN_EVALUATION
+            )
+            claim.status = ClaimStatus.IN_EVALUATION
+
+        claim.supervisor_id = supervisor_user_id
+
+        transition = StateTransition(
+            tenant_id=tenant_id,
+            subject_type=SubjectType.CLAIM,
+            subject_id=claim.id,
+            from_status=from_status.value,
+            to_status=claim.status.value,
+            reason=f"Escalado: {reason}",
+            actor_user_id=actor_user_id,
+        )
+        db.add(transition)
+        await db.flush()
+
+        # Notify supervisor
+        await notification_service.create(
+            db,
+            tenant_id=tenant_id,
+            recipient_user_id=supervisor_user_id,
+            entity_type="claim",
+            entity_id=claim.id,
+            kind=NotificationKind.ESCALATED,
+            title="Expediente escalado",
+            body=f"El expediente {claim.claim_number} fue escalado para tu revisión. Motivo: {reason}",
+        )
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="ESCALATE",
+            entity_type="claim",
+            entity_id=claim.id,
+            actor_user_id=actor_user_id,
+            payload_diff={
+                "supervisor_id": str(supervisor_user_id),
+                "reason": reason,
+            },
+        )
+        await db.refresh(claim)
+        return claim
+
+    # ── CU-20: Approve or reject ──────────────────────────────────
+
+    async def decide(
+        self,
+        db: AsyncSession,
+        *,
+        claim_id: UUID,
+        tenant_id: UUID,
+        decision: str,
+        reason: str,
+        actor_user_id: UUID,
+    ) -> Claim:
+        claim = await self.get_claim(db, claim_id=claim_id, tenant_id=tenant_id)
+
+        if claim.status != ClaimStatus.IN_EVALUATION:
+            raise ConflictError(
+                f"Solo se puede decidir en estado 'in_evaluation' (actual: {claim.status.value})"
+            )
+
+        if claim.decision is not None:
+            raise ConflictError("El expediente ya tiene una decisión")
+
+        from app.models.claim import ClaimDecision
+        from app.services.workflow_service import WorkflowService
+
+        wf = WorkflowService()
+        target_status = (
+            ClaimStatus.APPROVED if decision == "approved" else ClaimStatus.REJECTED
+        )
+
+        # Validate transition via existing state machine
+        wf.validate_claim_transition(
+            current=claim.status, target=target_status
+        )
+
+        old_status = claim.status
+        claim.status = target_status
+        claim.decision = ClaimDecision(decision)
+        claim.decision_reason = reason
+        claim.decided_by_user_id = actor_user_id
+        # Column is TIMESTAMP WITHOUT TIME ZONE — strip tz para consistencia con el resto del proyecto
+        claim.decided_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        transition = StateTransition(
+            tenant_id=tenant_id,
+            subject_type=SubjectType.CLAIM,
+            subject_id=claim.id,
+            from_status=old_status.value,
+            to_status=target_status.value,
+            reason=reason,
+            actor_user_id=actor_user_id,
+        )
+        db.add(transition)
+        await db.flush()
+
+        # Notify assigned analyst if present
+        if claim.assigned_analyst_id and claim.assigned_analyst_id != actor_user_id:
+            decision_label = "aprobado" if decision == "approved" else "rechazado"
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_user_id=claim.assigned_analyst_id,
+                entity_type="claim",
+                entity_id=claim.id,
+                kind=NotificationKind.DECISION,
+                title=f"Expediente {decision_label}",
+                body=f"El expediente {claim.claim_number} fue {decision_label}. Motivo: {reason}",
+            )
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="DECIDE",
+            entity_type="claim",
+            entity_id=claim.id,
+            actor_user_id=actor_user_id,
+            payload_diff={
+                "decision": decision,
+                "reason": reason,
+                "from_status": old_status.value,
+                "to_status": target_status.value,
+            },
+        )
+        await db.refresh(claim)
+        return claim

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import Role, User
-from app.schemas.user import UserCreate, UserListResponse, UserOut, UserUpdate
+from app.schemas.user import UserCreate, UserListResponse, UserMinimalOut, UserOut, UserUpdate
 from app.services.exceptions import ConflictError, NotFoundError, ValidationError
 from app.services.user_service import UserService
 
@@ -23,6 +23,36 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
             status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes"
         )
     return current_user
+
+
+@router.get("/by-role", response_model=list[UserMinimalOut])
+async def list_users_by_role(
+    role: list[str] = Query(..., description="Roles a filtrar. Acepta múltiples: ?role=supervisor&role=admin"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[UserMinimalOut]:
+    """Lista usuarios del tenant filtrados por rol. Pensado para dropdowns
+    (CU-19 escalate, CU-26 assign). Disponible a cualquier usuario autenticado;
+    expone solo id, full_name y role (sin email, mfa, is_active)."""
+    items: list[User] = []
+    for r in role:
+        rows, _ = await user_service.list_users(
+            db,
+            tenant_id=current_user.tenant_id,
+            page=1,
+            limit=200,
+            role=r.upper(),
+            search=None,
+        )
+        items.extend(rows)
+    # Deduplicar por id preservando orden
+    seen: set[UUID] = set()
+    unique: list[User] = []
+    for u in items:
+        if u.id not in seen:
+            seen.add(u.id)
+            unique.append(u)
+    return [UserMinimalOut.model_validate(u) for u in unique if u.is_active]
 
 
 @router.get("", response_model=UserListResponse)

@@ -17,6 +17,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import EvidenceUploader from '@/components/claims/EvidenceUploader'
 import EvidenceGallery from '@/components/claims/EvidenceGallery'
+import AssignAnalystDialog from '@/components/claims/AssignAnalystDialog'
+import EscalateDialog from '@/components/claims/EscalateDialog'
+import DecisionPanel from '@/components/claims/DecisionPanel'
+import { useAuthStore } from '@/lib/stores/authStore'
 import type { Claim } from '@/types/claim'
 import type { Observation } from '@/types/observation'
 import type { ThirdParty } from '@/types/third-party'
@@ -101,6 +105,10 @@ export default function ExpedienteDetailPage() {
   const [trForm, setTrForm] = useState({ officer_name: '', report_code: '', jurisdiction: '', report_date: '', summary: '' })
   const [trSubmitting, setTrSubmitting] = useState(false)
   const [editingTrId, setEditingTrId] = useState<string | null>(null)
+  const [assignOpen, setAssignOpen] = useState(false)
+  const [escalateOpen, setEscalateOpen] = useState(false)
+  const [decisionOpen, setDecisionOpen] = useState(false)
+  const user = useAuthStore((s) => s.user)
 
   useEffect(() => { claimsApi.get(id).then(setClaim).catch(() => setError('No se pudo cargar el expediente')).finally(() => setLoading(false)) }, [id])
 
@@ -274,7 +282,27 @@ export default function ExpedienteDetailPage() {
           </div>
           <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${status.color}`}>{status.label}</span>
         </div>
-        {allowed.length > 0 && <Button onClick={() => setStatusOpen(true)}>Cambiar Estado</Button>}
+        <div className="flex items-center gap-2">
+          {/* CU-20: Decision — visible for supervisor/admin on in_evaluation claims */}
+          {!claim.decision && claim.status === 'in_evaluation' && (user?.role === 'supervisor' || user?.role === 'admin') && (
+            <Button onClick={() => setDecisionOpen(true)} className="bg-amber-600 hover:bg-amber-700">
+              Decidir
+            </Button>
+          )}
+          {/* CU-19: Escalate — visible for analyst */}
+          {!claim.supervisor_id && claim.status !== 'closed' && (user?.role === 'analyst' || user?.role === 'admin') && (
+            <Button variant="outline" onClick={() => setEscalateOpen(true)}>
+              Escalar
+            </Button>
+          )}
+          {/* CU-26: Assign analyst — visible for supervisor/admin */}
+          {(user?.role === 'supervisor' || user?.role === 'admin') && (
+            <Button variant="outline" onClick={() => setAssignOpen(true)}>
+              Asignar analista
+            </Button>
+          )}
+          {allowed.length > 0 && <Button onClick={() => setStatusOpen(true)}>Cambiar Estado</Button>}
+        </div>
       </div>
       <div className="flex border-b border-slate-200">
         {['Resumen', 'Observaciones', 'Terceros', 'Evidencias', 'Documentación', 'Tránsito'].map((tab, i) => (
@@ -519,6 +547,27 @@ export default function ExpedienteDetailPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Cycle 5 dialogs */}
+      <AssignAnalystDialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        claimId={id}
+        currentAnalystId={claim.assigned_analyst_id}
+        onAssigned={setClaim}
+      />
+      <EscalateDialog
+        open={escalateOpen}
+        onClose={() => setEscalateOpen(false)}
+        claimId={id}
+        onEscalated={setClaim}
+      />
+      <DecisionPanel
+        open={decisionOpen}
+        onClose={() => setDecisionOpen(false)}
+        claimId={id}
+        onDecided={setClaim}
+      />
     </div>
   )
 }

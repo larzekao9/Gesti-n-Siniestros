@@ -86,3 +86,35 @@ async def user_admin(db_session: AsyncSession, tenant_a: Tenant) -> User:
     await db_session.refresh(user)
     return user
 
+
+@pytest_asyncio.fixture
+async def user_supervisor(db_session: AsyncSession, tenant_a: Tenant) -> User:
+    """Seed a supervisor user belonging to Tenant A."""
+    user = User(
+        email="supervisor@aseguradora-a.com",
+        hashed_password=hash_password("Password123!"),
+        full_name="Supervisor User",
+        role=Role.SUPERVISOR,
+        tenant_id=tenant_a.id,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def user_analyst(db_session: AsyncSession, tenant_a: Tenant) -> User:
+    """Seed an analyst user belonging to Tenant A."""
+    user = User(
+        email="analyst@aseguradora-a.com",
+        hashed_password=hash_password("Password123!"),
+        full_name="Analyst User",
+        role=Role.ANALYST,
+        tenant_id=tenant_a.id,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+

@@ -83,4 +83,19 @@ export interface FormalizeResponse {
   request: ClaimRequest | null
 }
 
+export interface ClaimAssignPayload {
+  analyst_user_id: string
+  reason?: string
+}
+
+export interface ClaimEscalatePayload {
+  supervisor_user_id: string
+  reason: string
+}
+
+export interface ClaimDecisionPayload {
+  decision: 'approved' | 'rejected'
+  reason: string
+}
+
 import type { ClaimRequest } from './claim-request'

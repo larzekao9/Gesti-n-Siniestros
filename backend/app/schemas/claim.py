@@ -110,3 +110,18 @@ class ClaimListResponse(BaseModel):
 class FormalizeResponse(BaseModel):
     claim: ClaimOut
     request: ClaimRequestOut | None = None
+
+
+class ClaimAssign(BaseModel):
+    analyst_user_id: UUID
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class ClaimEscalate(BaseModel):
+    supervisor_user_id: UUID
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ClaimDecisionCreate(BaseModel):
+    decision: str = Field(pattern="^(approved|rejected)$")
+    reason: str = Field(min_length=1, max_length=2000)

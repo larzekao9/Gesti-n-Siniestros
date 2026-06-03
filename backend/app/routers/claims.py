@@ -1,4 +1,4 @@
-"""Claim router — CU-10, CU-14, CU-15, CU-17, CU-30."""
+"""Claim router — CU-10, CU-14, CU-15, CU-17, CU-19, CU-20, CU-26, CU-30."""
 
 from uuid import UUID
 
@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, require_role
+from app.models.user import Role, User
 from app.schemas.claim import (
+    ClaimAssign,
     ClaimCreate,
+    ClaimDecisionCreate,
+    ClaimEscalate,
     ClaimListResponse,
     ClaimOut,
     ClaimStatusUpdate,
@@ -54,6 +57,7 @@ async def list_claims(
     from_date: str | None = Query(None, alias="from"),
     to_date: str | None = Query(None, alias="to"),
     analyst: str | None = Query(None, alias="analyst"),
+    supervisor: str | None = Query(None, alias="supervisor"),
     policyholder: str | None = Query(None, alias="policyholder"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -73,6 +77,7 @@ async def list_claims(
             from_date=fd,
             to_date=td,
             analyst_id=analyst,
+            supervisor_id=supervisor,
             policyholder_id=policyholder,
             page=page,
             limit=limit,
@@ -341,3 +346,95 @@ async def delete_third_party(
         await db.commit()
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ── CU-26: Assign / Reassign analyst ─────────────────────────────
+
+@router.patch("/{claim_id}/assign", response_model=ClaimOut)
+async def assign_analyst(
+    claim_id: UUID,
+    payload: ClaimAssign,
+    current_user: User = require_role(Role.SUPERVISOR, Role.ADMIN),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        claim = await claim_service.assign_analyst(
+            db,
+            claim_id=claim_id,
+            tenant_id=current_user.tenant_id,
+            new_analyst_user_id=payload.analyst_user_id,
+            actor_user_id=current_user.id,
+            reason=payload.reason,
+        )
+        await db.commit()
+        return ClaimOut.model_validate(claim)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+# ── CU-19: Escalate to supervisor ────────────────────────────────
+
+@router.post("/{claim_id}/escalate", response_model=ClaimOut)
+async def escalate_claim(
+    claim_id: UUID,
+    payload: ClaimEscalate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        claim = await claim_service.escalate(
+            db,
+            claim_id=claim_id,
+            tenant_id=current_user.tenant_id,
+            supervisor_user_id=payload.supervisor_user_id,
+            reason=payload.reason,
+            actor_user_id=current_user.id,
+        )
+        await db.commit()
+        return ClaimOut.model_validate(claim)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+# ── CU-20: Approve or reject ─────────────────────────────────────
+
+@router.post("/{claim_id}/decision", response_model=ClaimOut)
+async def decide_claim(
+    claim_id: UUID,
+    payload: ClaimDecisionCreate,
+    current_user: User = require_role(Role.SUPERVISOR, Role.ADMIN),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        claim = await claim_service.decide(
+            db,
+            claim_id=claim_id,
+            tenant_id=current_user.tenant_id,
+            decision=payload.decision,
+            reason=payload.reason,
+            actor_user_id=current_user.id,
+        )
+        await db.commit()
+        return ClaimOut.model_validate(claim)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except InvalidStateTransitionError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))

@@ -12,7 +12,7 @@ from slowapi.util import get_remote_address
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, users, policyholders, policies, vehicles, claim_requests, claims
-from app.routers import evidences, document_requests, traffic_reports
+from app.routers import evidences, document_requests, traffic_reports, notifications
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -66,6 +66,7 @@ app.include_router(claims.router, prefix="/api")
 app.include_router(evidences.router, prefix="/api")
 app.include_router(document_requests.router, prefix="/api")
 app.include_router(traffic_reports.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 
 @app.get("/health", tags=["ops"])

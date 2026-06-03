@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, LayoutDashboard, FileText, Users, UserPlus, Clipboard, Car, User, BarChart3, LogOut, Shield } from 'lucide-react'
+import { Loader2, LayoutDashboard, FileText, Users, UserPlus, Clipboard, Car, User, BarChart3, LogOut, Shield, Inbox } from 'lucide-react'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 
@@ -11,6 +11,7 @@ import { useAuthStore, getRefreshToken } from '@/lib/stores/authStore'
 import { authApi } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import NotificationsBell from '@/components/dashboard/NotificationsBell'
 
 const NAV_ITEMS = [
   {
@@ -48,6 +49,12 @@ const NAV_ITEMS = [
     href: '/dashboard/expedientes',
     label: 'Expedientes',
     icon: FileText,
+  },
+  {
+    href: '/dashboard/casos-escalados',
+    label: 'Casos escalados',
+    icon: Inbox,
+    roles: ['admin', 'supervisor'] as const,
   },
   {
     href: '/dashboard/solicitudes',
@@ -197,6 +204,14 @@ export default function DashboardLayout({
         </div>
       </aside>
 
+      {/* Desktop top bar — solo campana de notificaciones, alineado a la derecha */}
+      <header
+        className="hidden md:flex fixed top-0 right-0 left-64 z-20 items-center justify-end bg-white border-b border-slate-200 px-6 h-14"
+        aria-label="Barra superior"
+      >
+        <NotificationsBell />
+      </header>
+
       {/* Mobile header */}
       <header className="md:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between bg-white border-b border-slate-200 px-4 h-14">
         <div className="flex items-center gap-2">
@@ -205,15 +220,18 @@ export default function DashboardLayout({
           </div>
           <span className="font-semibold text-slate-900 text-sm">Gestión Siniestros</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleLogout}
-          disabled={isLoading}
-          aria-label="Cerrar sesión"
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <NotificationsBell />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            disabled={isLoading}
+            aria-label="Cerrar sesión"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
       </header>
 
       {/* Mobile bottom nav */}
@@ -246,7 +264,7 @@ export default function DashboardLayout({
       </nav>
 
       {/* Main content */}
-      <main className="flex-1 md:ml-64 pt-14 md:pt-0 pb-16 md:pb-0">
+      <main className="flex-1 md:ml-64 pt-14 pb-16 md:pb-0">
         <div className="max-w-7xl mx-auto p-4 md:p-8">{children}</div>
       </main>
     </div>

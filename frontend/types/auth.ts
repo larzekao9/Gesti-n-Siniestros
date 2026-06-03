@@ -3,6 +3,7 @@ export interface User {
   email: string
   full_name: string
   role: 'admin' | 'supervisor' | 'analyst'
+  is_active?: boolean
   mfa_enabled: boolean
   tenant_id: string
 }

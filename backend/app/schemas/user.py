@@ -38,3 +38,13 @@ class UserListResponse(BaseModel):
     total: int
     page: int
     limit: int
+
+
+class UserMinimalOut(BaseModel):
+    """Vista pública mínima para dropdowns (CU-19 escalate, CU-26 assign).
+    No expone is_active, mfa, role completo ni email — solo lo necesario."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    full_name: str
+    role: Role

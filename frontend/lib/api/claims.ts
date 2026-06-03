@@ -4,6 +4,9 @@ import type {
   ClaimListResponse,
   ClaimCreatePayload,
   ClaimStatusUpdatePayload,
+  ClaimAssignPayload,
+  ClaimEscalatePayload,
+  ClaimDecisionPayload,
 } from '@/types/claim'
 import type {
   Observation,
@@ -24,6 +27,7 @@ export const claimsApi = {
     from?: string
     to?: string
     analyst?: string
+    supervisor?: string
     policyholder?: string
     page?: number
     limit?: number
@@ -38,6 +42,18 @@ export const claimsApi = {
 
   updateStatus: (id: string, data: ClaimStatusUpdatePayload): Promise<Claim> =>
     apiClient.patch<Claim>(`/claims/${id}/status`, data).then((r) => r.data),
+
+  // CU-26: Assign / reassign analyst
+  assignAnalyst: (id: string, data: ClaimAssignPayload): Promise<Claim> =>
+    apiClient.patch<Claim>(`/claims/${id}/assign`, data).then((r) => r.data),
+
+  // CU-19: Escalate to supervisor
+  escalate: (id: string, data: ClaimEscalatePayload): Promise<Claim> =>
+    apiClient.post<Claim>(`/claims/${id}/escalate`, data).then((r) => r.data),
+
+  // CU-20: Approve or reject
+  decide: (id: string, data: ClaimDecisionPayload): Promise<Claim> =>
+    apiClient.post<Claim>(`/claims/${id}/decision`, data).then((r) => r.data),
 
   // Observations
   listObservations: (claimId: string, params?: { page?: number; limit?: number }): Promise<ObservationListResponse> =>

@@ -268,7 +268,13 @@ class ClaimRequestService:
         db.add(transition)
         await db.flush()
 
-        # TODO Ciclo 5: notification_service.create(recipient_account=policyholder_account, kind='intake_rejected', ...)
+        # TODO Ciclo 7: notify policyholder via policyholder_account — la tabla
+        # policyholder_accounts y el canal móvil no existen hasta Ciclo 7.
+        # notification_service.create(
+        #     recipient_account_id=cr.created_by_account_id,
+        #     kind=NotificationKind.INTAKE_REJECTED,
+        #     ...
+        # )
 
         await audit_service.write(
             db,

@@ -17,6 +17,7 @@ from app.models.third_party import ThirdParty, ThirdPartyKind
 from app.models.evidence import Evidence, EvidenceType
 from app.models.document_request import DocumentRequest, DocumentRequestStatus
 from app.models.traffic_report import TrafficReport
+from app.models.notification import Notification, NotificationKind
 
 __all__ = [
     "Base",
@@ -47,4 +48,6 @@ __all__ = [
     "DocumentRequest",
     "DocumentRequestStatus",
     "TrafficReport",
+    "Notification",
+    "NotificationKind",
 ]

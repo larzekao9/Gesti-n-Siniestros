@@ -55,8 +55,14 @@ class DocumentRequestService:
             payload_diff={"claim_id": str(claim_id), "description": description},
         )
 
-        # TODO Ciclo 5: notification_service.create(
-        #     recipient_account_id=..., kind='docs_requested', entity_type='document_request', entity_id=doc_req.id
+        # TODO Ciclo 7: notify policyholder via policyholder_account — la tabla
+        # policyholder_accounts y el canal móvil no existen hasta Ciclo 7.
+        # notification_service.create(
+        #     recipient_account_id=...,
+        #     kind=NotificationKind.DOCS_REQUESTED,
+        #     entity_type="document_request",
+        #     entity_id=doc_req.id,
+        #     ...
         # )
 
         await db.refresh(doc_req)
