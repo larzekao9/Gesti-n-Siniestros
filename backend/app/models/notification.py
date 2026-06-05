@@ -36,8 +36,9 @@ class Notification(TenantMixin, TimestampMixin, Base):
     recipient_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
-    # TODO Ciclo 7: add ForeignKey("policyholder_accounts.id", ondelete="CASCADE")
-    recipient_account_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    recipient_account_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("policyholder_accounts.id", ondelete="CASCADE"), nullable=True
+    )
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_id: Mapped[UUID | None] = mapped_column(nullable=True)
     kind: Mapped[NotificationKind] = mapped_column(

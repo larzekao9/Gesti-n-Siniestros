@@ -65,9 +65,14 @@ class EvidenceService:
         metadata: dict | None,
         document_request_id: UUID | None,
         tenant_id: UUID,
-        actor_user_id: UUID,
+        actor_user_id: UUID | None = None,
+        actor_account_id: UUID | None = None,
     ) -> Evidence:
-        """Persist an evidence record after successful S3 upload."""
+        """Persist an evidence record after successful S3 upload.
+
+        Soporta ambos canales: interno (``actor_user_id``) y asegurado
+        (``actor_account_id``, Ciclo 7). Exactamente uno debe estar presente.
+        """
         try:
             etype = EvidenceType(evidence_type)
         except ValueError:
@@ -128,6 +133,7 @@ class EvidenceService:
             file_size=file_size,
             metadata_=metadata,
             uploaded_by_user_id=actor_user_id,
+            uploaded_by_account_id=actor_account_id,
             document_request_id=document_request_id,
         )
         db.add(evidence)
@@ -141,6 +147,7 @@ class EvidenceService:
             entity_type="evidence",
             entity_id=evidence.id,
             actor_user_id=actor_user_id,
+            actor_account_id=actor_account_id,
             payload_diff={
                 "subject_type": subject_type,
                 "subject_id": str(subject_id),

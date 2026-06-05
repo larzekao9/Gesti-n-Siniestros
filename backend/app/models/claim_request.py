@@ -37,6 +37,11 @@ class ClaimRequest(TenantMixin, TimestampMixin, Base):
         default=ClaimRequestStatus.DRAFT,
         nullable=False,
     )
+    # Cuenta del asegurado que creó la solicitud (canal móvil, Ciclo 7).
+    # Nullable: las solicitudes seedeadas / internas pueden no tener cuenta asociada.
+    created_by_account_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("policyholder_accounts.id", ondelete="SET NULL"), nullable=True
+    )
     policyholder_id: Mapped[UUID] = mapped_column(
         ForeignKey("policyholders.id", ondelete="CASCADE"), nullable=False
     )

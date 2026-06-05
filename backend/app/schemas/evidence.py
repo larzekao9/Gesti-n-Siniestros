@@ -61,6 +61,27 @@ class EvidenceOut(BaseModel):
     updated_at: datetime | None = None
 
 
+class InsuredPresignRequest(BaseModel):
+    """Presign desde el canal asegurado — el subject es el claim_request del path."""
+
+    type: str = Field(..., description="Tipo de evidencia: photo, video, etc.")
+    file_name: str
+    mime_type: str
+    file_size: int = Field(..., gt=0, le=52428800)
+
+
+class InsuredEvidenceRegister(BaseModel):
+    """Registro de evidencia del asegurado — subject implícito (claim_request del path)."""
+
+    s3_key: str
+    type: str
+    file_name: str
+    mime_type: str
+    file_size: int
+    metadata: dict | None = None
+    document_request_id: UUID | None = None
+
+
 class EvidenceDownloadUrlResponse(BaseModel):
     download_url: str
     expires_in: int = 3600

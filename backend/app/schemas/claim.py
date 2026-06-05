@@ -125,3 +125,87 @@ class ClaimEscalate(BaseModel):
 class ClaimDecisionCreate(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
     reason: str = Field(min_length=1, max_length=2000)
+
+
+# ── Vistas del canal asegurado (CU-06) ─────────────────────────────────
+# Schemas DEDICADOS (no reuso de ClaimOut). Ocultan por diseño: fraud_score,
+# created_by/assigned_analyst/supervisor/decided_by, y observaciones internas.
+
+
+class PublicObservationOut(BaseModel):
+    """Observación visible al asegurado (is_internal == False)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    comment: str
+    created_at: datetime
+
+
+class InsuredDocumentRequestOut(BaseModel):
+    """Solicitud de documentación tal como la ve el asegurado (CU-07/08)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    description: str
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+
+class InsuredTimelineEntry(BaseModel):
+    """Hito del historial de estados, sin datos internos (sin actor ni motivo interno)."""
+
+    to_status: str
+    created_at: datetime
+
+
+class ClaimOutInsured(BaseModel):
+    """Vista del expediente para el asegurado. Solo campos no sensibles."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    claim_number: str
+    status: str
+    source: str
+    accident_date: date
+    accident_time: time | None
+    accident_location: str
+    accident_lat: Decimal | None
+    accident_lng: Decimal | None
+    accident_description: str | None
+    reported_damages: str | None
+    decision: str | None
+    decision_reason: str | None
+    decided_at: datetime | None
+    created_at: datetime
+    updated_at: datetime | None
+    # Relacionados que el asegurado posee:
+    policyholder: PolicyholderSnippet | None = None
+    policy: PolicySnippet | None = None
+    vehicle: VehicleSnippet | None = None
+    # Detalle expandido (poblado por el service, no por ORM lazy-load):
+    observations: list[PublicObservationOut] = []
+    document_requests: list[InsuredDocumentRequestOut] = []
+    timeline: list[InsuredTimelineEntry] = []
+
+
+class InsuredClaimRequestListItem(BaseModel):
+    """Item de la lista unificada 'Mis reclamos' (CU-06)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    request_number: str | None
+    status: str
+    accident_date: date | None
+    accident_location: str | None
+    formalized_claim_id: UUID | None
+    intake_decision_reason: str | None
+    created_at: datetime
+
+
+class InsuredClaimRequestListResponse(BaseModel):
+    items: list[InsuredClaimRequestListItem]
+    total: int
+    page: int
+    limit: int

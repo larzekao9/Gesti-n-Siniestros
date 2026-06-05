@@ -8,8 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim_request import ClaimRequest, ClaimRequestStatus
+from app.models.evidence import Evidence
+from app.models.notification import NotificationKind
 from app.models.state_transition import StateTransition, SubjectType
-from app.models.user import Role
+from app.models.user import Role, User
 from app.models.policyholder import Policyholder
 from app.models.policy import Policy
 from app.models.vehicle import Vehicle
@@ -20,8 +22,11 @@ from app.services.exceptions import (
     PermissionError,
     ValidationError,
 )
+from app.services.notification_service import notification_service
+from app.services.workflow_service import WorkflowService
 
 audit_service = AuditService()
+workflow_service = WorkflowService()
 
 
 class ClaimRequestService:
@@ -43,6 +48,7 @@ class ClaimRequestService:
         accident_description: str | None = None,
         reported_damages: str | None = None,
         actor_user_id: UUID | None = None,
+        created_by_account_id: UUID | None = None,
     ) -> ClaimRequest:
         # Validate catalog entities exist in tenant
         ph = await db.execute(
@@ -72,10 +78,12 @@ class ClaimRequestService:
         cr = ClaimRequest(
             tenant_id=tenant_id,
             status=ClaimRequestStatus.DRAFT,
+            created_by_account_id=created_by_account_id,
             policyholder_id=policyholder_id,
             policy_id=policy_id,
             vehicle_id=vehicle_id,
             accident_date=accident_date,
+            accident_time=accident_time,
             accident_location=accident_location,
             accident_lat=accident_lat,
             accident_lng=accident_lng,
@@ -92,6 +100,232 @@ class ClaimRequestService:
             entity_type="claim_request",
             entity_id=cr.id,
             actor_user_id=actor_user_id,
+            actor_account_id=created_by_account_id,
+        )
+        await db.refresh(cr)
+        return cr
+
+    # ── Canal asegurado (CU-02/03/05/06) ───────────────────────────
+
+    async def get_for_account(
+        self, db: AsyncSession, *, request_id: UUID, tenant_id: UUID, account_id: UUID
+    ) -> ClaimRequest:
+        """Carga una solicitud verificando que pertenezca a la cuenta del asegurado.
+
+        Cross-account devuelve 404 (no 403) para no filtrar existencia.
+        """
+        result = await db.execute(
+            select(ClaimRequest).where(
+                ClaimRequest.id == request_id,
+                ClaimRequest.tenant_id == tenant_id,
+                ClaimRequest.created_by_account_id == account_id,
+            )
+        )
+        cr = result.scalar_one_or_none()
+        if cr is None:
+            raise NotFoundError("Solicitud no encontrada")
+        return cr
+
+    async def list_for_account(
+        self,
+        db: AsyncSession,
+        *,
+        tenant_id: UUID,
+        account_id: UUID,
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[ClaimRequest], int]:
+        offset = (page - 1) * limit
+        query = select(ClaimRequest).where(
+            ClaimRequest.tenant_id == tenant_id,
+            ClaimRequest.created_by_account_id == account_id,
+        )
+        count_q = select(func.count()).select_from(query.subquery())
+        total = (await db.execute(count_q)).scalar_one()
+
+        query = query.order_by(ClaimRequest.created_at.desc()).offset(offset).limit(limit)
+        result = await db.execute(query)
+        return list(result.scalars().all()), total
+
+    async def update_draft(
+        self,
+        db: AsyncSession,
+        *,
+        request_id: UUID,
+        tenant_id: UUID,
+        account_id: UUID,
+        fields: dict,
+    ) -> ClaimRequest:
+        """Auto-guardado de un paso del wizard. Solo permitido en estado draft."""
+        cr = await self.get_for_account(
+            db, request_id=request_id, tenant_id=tenant_id, account_id=account_id
+        )
+        if cr.status != ClaimRequestStatus.DRAFT:
+            raise ConflictError("Solo se puede editar una solicitud en borrador")
+
+        # Validar entidades del catálogo si se cambian.
+        if fields.get("policyholder_id") is not None:
+            ph = await db.execute(
+                select(Policyholder).where(
+                    Policyholder.id == fields["policyholder_id"],
+                    Policyholder.tenant_id == tenant_id,
+                )
+            )
+            if ph.scalar_one_or_none() is None:
+                raise NotFoundError("Asegurado no encontrado")
+        if fields.get("policy_id") is not None:
+            pol = await db.execute(
+                select(Policy).where(
+                    Policy.id == fields["policy_id"], Policy.tenant_id == tenant_id
+                )
+            )
+            if pol.scalar_one_or_none() is None:
+                raise NotFoundError("Póliza no encontrada")
+        if fields.get("vehicle_id") is not None:
+            veh = await db.execute(
+                select(Vehicle).where(
+                    Vehicle.id == fields["vehicle_id"], Vehicle.tenant_id == tenant_id
+                )
+            )
+            if veh.scalar_one_or_none() is None:
+                raise NotFoundError("Vehículo no encontrado")
+
+        editable = {
+            "policyholder_id", "policy_id", "vehicle_id", "accident_date",
+            "accident_time", "accident_location", "accident_lat", "accident_lng",
+            "accident_description", "reported_damages",
+        }
+        for key, value in fields.items():
+            if key in editable and value is not None:
+                setattr(cr, key, value)
+
+        await db.flush()
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="UPDATE_DRAFT",
+            entity_type="claim_request",
+            entity_id=cr.id,
+            actor_account_id=account_id,
+        )
+        await db.refresh(cr)
+        return cr
+
+    async def delete_draft(
+        self, db: AsyncSession, *, request_id: UUID, tenant_id: UUID, account_id: UUID
+    ) -> None:
+        """Descarta un borrador. Solo permitido en estado draft (CU-02 F-A2)."""
+        cr = await self.get_for_account(
+            db, request_id=request_id, tenant_id=tenant_id, account_id=account_id
+        )
+        if cr.status != ClaimRequestStatus.DRAFT:
+            raise ConflictError("Solo se puede descartar una solicitud en borrador")
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="DELETE_DRAFT",
+            entity_type="claim_request",
+            entity_id=cr.id,
+            actor_account_id=account_id,
+        )
+        await db.delete(cr)
+        await db.flush()
+
+    async def _validate_minimal_data(
+        self, db: AsyncSession, cr: ClaimRequest
+    ) -> None:
+        """Valida completitud mínima para enviar (CU-05). 422 con campos faltantes."""
+        missing: list[str] = []
+        if cr.vehicle_id is None:
+            missing.append("vehicle_id")
+        if cr.policy_id is None:
+            missing.append("policy_id")
+        if cr.accident_date is None:
+            missing.append("accident_date")
+        if not cr.accident_location:
+            missing.append("accident_location")
+        if not cr.accident_description:
+            missing.append("accident_description")
+
+        # Al menos una evidencia inicial cargada (CU-04).
+        ev_count = await db.execute(
+            select(func.count()).select_from(
+                select(Evidence).where(
+                    Evidence.claim_request_id == cr.id,
+                    Evidence.tenant_id == cr.tenant_id,
+                ).subquery()
+            )
+        )
+        if ev_count.scalar_one() == 0:
+            missing.append("evidences")
+
+        if missing:
+            raise ValidationError(
+                "Solicitud incompleta. Faltan campos: " + ", ".join(missing)
+            )
+
+    async def submit(
+        self, db: AsyncSession, *, request_id: UUID, tenant_id: UUID, account_id: UUID
+    ) -> ClaimRequest:
+        """Envía el borrador: draft → submitted (CU-05). Transacción atómica."""
+        cr = await self.get_for_account(
+            db, request_id=request_id, tenant_id=tenant_id, account_id=account_id
+        )
+
+        if cr.status != ClaimRequestStatus.DRAFT:
+            raise ConflictError("La solicitud ya fue enviada")
+
+        # Valida la transición vía la state machine + completitud mínima.
+        workflow_service.validate_transition(
+            current=cr.status, target=ClaimRequestStatus.SUBMITTED
+        )
+        await self._validate_minimal_data(db, cr)
+
+        old_status = cr.status
+        cr.status = ClaimRequestStatus.SUBMITTED
+        cr.request_number = await self._generate_request_number(db, tenant_id=tenant_id)
+        cr.submitted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        transition = StateTransition(
+            tenant_id=tenant_id,
+            subject_type=SubjectType.CLAIM_REQUEST,
+            subject_id=cr.id,
+            from_status=old_status.value,
+            to_status=cr.status.value,
+            actor_account_id=account_id,
+        )
+        db.add(transition)
+        await db.flush()
+
+        # Notificar a los analistas del tenant (entran a la bandeja de intake).
+        analysts = await db.execute(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.role == Role.ANALYST,
+                User.is_active == True,  # noqa: E712
+            )
+        )
+        for analyst in analysts.scalars().all():
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_user_id=analyst.id,
+                entity_type="claim_request",
+                entity_id=cr.id,
+                kind=NotificationKind.CLAIM_CREATED,
+                title="Nueva solicitud de siniestro",
+                body=f"Solicitud {cr.request_number} pendiente de revisión",
+            )
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="SUBMIT_CLAIM_REQUEST",
+            entity_type="claim_request",
+            entity_id=cr.id,
+            actor_account_id=account_id,
+            payload_diff={"request_number": cr.request_number},
         )
         await db.refresh(cr)
         return cr
@@ -268,13 +502,19 @@ class ClaimRequestService:
         db.add(transition)
         await db.flush()
 
-        # TODO Ciclo 7: notify policyholder via policyholder_account — la tabla
-        # policyholder_accounts y el canal móvil no existen hasta Ciclo 7.
-        # notification_service.create(
-        #     recipient_account_id=cr.created_by_account_id,
-        #     kind=NotificationKind.INTAKE_REJECTED,
-        #     ...
-        # )
+        # Retro-enganche Ciclo 7: notificar al asegurado del rechazo en intake (CU-25).
+        # Si la solicitud no vino del canal móvil (sin cuenta), create() es no-op.
+        if cr.created_by_account_id is not None:
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_account_id=cr.created_by_account_id,
+                entity_type="claim_request",
+                entity_id=cr.id,
+                kind=NotificationKind.INTAKE_REJECTED,
+                title="Solicitud rechazada",
+                body=f"Tu solicitud {cr.request_number or ''} fue rechazada. Motivo: {reason}",
+            )
 
         await audit_service.write(
             db,

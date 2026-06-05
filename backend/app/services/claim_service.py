@@ -11,6 +11,7 @@ from app.models.claim import Claim, ClaimSource, ClaimStatus, ClaimDecision
 from app.models.claim_request import ClaimRequest, ClaimRequestStatus
 from app.models.state_transition import StateTransition, SubjectType
 from app.models.policyholder import Policyholder
+from app.models.policyholder_account import PolicyholderAccount
 from app.models.policy import Policy
 from app.models.vehicle import Vehicle
 from app.models.user import Role, User
@@ -66,6 +67,81 @@ class ClaimService:
             )
         )).scalar_one_or_none()
         return claim, ph, pol, veh
+
+    async def get_for_insured(
+        self, db: AsyncSession, *, claim_id: UUID, tenant_id: UUID, policyholder_id: UUID
+    ) -> dict:
+        """Carga un expediente para el asegurado dueño (CU-06).
+
+        Filtra por ``policyholder_id`` de la cuenta autenticada; cross-account
+        devuelve 404. Devuelve un dict con el claim + relacionados + observaciones
+        públicas + document_requests + timeline, para alimentar ``ClaimOutInsured``.
+        Nunca expone fraud_score ni IDs de staff (eso lo garantiza el schema dedicado).
+        """
+        from app.models.observation import Observation
+        from app.models.document_request import DocumentRequest
+        from app.models.state_transition import StateTransition, SubjectType
+
+        result = await db.execute(
+            select(Claim).where(
+                Claim.id == claim_id,
+                Claim.tenant_id == tenant_id,
+                Claim.policyholder_id == policyholder_id,
+            )
+        )
+        claim = result.scalar_one_or_none()
+        if claim is None:
+            raise NotFoundError("Expediente no encontrado")
+
+        _, ph, pol, veh = await self.get_claim_with_related(
+            db, claim_id=claim_id, tenant_id=tenant_id
+        )
+
+        # Solo observaciones públicas (is_internal == False).
+        obs_result = await db.execute(
+            select(Observation)
+            .where(
+                Observation.claim_id == claim_id,
+                Observation.tenant_id == tenant_id,
+                Observation.is_internal == False,  # noqa: E712
+            )
+            .order_by(Observation.created_at.desc())
+        )
+        observations = list(obs_result.scalars().all())
+
+        dr_result = await db.execute(
+            select(DocumentRequest)
+            .where(
+                DocumentRequest.claim_id == claim_id,
+                DocumentRequest.tenant_id == tenant_id,
+            )
+            .order_by(DocumentRequest.created_at.desc())
+        )
+        document_requests = list(dr_result.scalars().all())
+
+        tl_result = await db.execute(
+            select(StateTransition)
+            .where(
+                StateTransition.tenant_id == tenant_id,
+                StateTransition.subject_type == SubjectType.CLAIM,
+                StateTransition.subject_id == claim_id,
+            )
+            .order_by(StateTransition.created_at.asc())
+        )
+        timeline = [
+            {"to_status": t.to_status, "created_at": t.created_at}
+            for t in tl_result.scalars().all()
+        ]
+
+        return {
+            "claim": claim,
+            "policyholder": ph,
+            "policy": pol,
+            "vehicle": veh,
+            "observations": observations,
+            "document_requests": document_requests,
+            "timeline": timeline,
+        }
 
     async def get_by_number(
         self, db: AsyncSession, *, claim_number: str, tenant_id: UUID
@@ -300,6 +376,19 @@ class ClaimService:
         await evidence_service.promote_request_evidences_to_claim(
             db, claim_request_id=cr.id, claim_id=claim.id, tenant_id=tenant_id
         )
+
+        # Retro-enganche Ciclo 7: avisar al asegurado que su solicitud se formalizó.
+        if cr.created_by_account_id is not None:
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_account_id=cr.created_by_account_id,
+                entity_type="claim",
+                entity_id=claim.id,
+                kind=NotificationKind.STATE_CHANGE,
+                title="Solicitud formalizada",
+                body=f"Tu solicitud {cr.request_number or ''} se convirtió en el expediente {claim_number}",
+            )
 
         await audit_service.write(
             db,
@@ -647,9 +736,10 @@ class ClaimService:
         db.add(transition)
         await db.flush()
 
+        decision_label = "aprobado" if decision == "approved" else "rechazado"
+
         # Notify assigned analyst if present
         if claim.assigned_analyst_id and claim.assigned_analyst_id != actor_user_id:
-            decision_label = "aprobado" if decision == "approved" else "rechazado"
             await notification_service.create(
                 db,
                 tenant_id=tenant_id,
@@ -659,6 +749,27 @@ class ClaimService:
                 kind=NotificationKind.DECISION,
                 title=f"Expediente {decision_label}",
                 body=f"El expediente {claim.claim_number} fue {decision_label}. Motivo: {reason}",
+            )
+
+        # Retro-enganche Ciclo 7: avisar al asegurado la decisión sobre su expediente.
+        account = await db.execute(
+            select(PolicyholderAccount).where(
+                PolicyholderAccount.policyholder_id == claim.policyholder_id,
+                PolicyholderAccount.tenant_id == tenant_id,
+                PolicyholderAccount.is_active == True,  # noqa: E712
+            )
+        )
+        account = account.scalar_one_or_none()
+        if account is not None:
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_account_id=account.id,
+                entity_type="claim",
+                entity_id=claim.id,
+                kind=NotificationKind.DECISION,
+                title=f"Expediente {decision_label}",
+                body=f"Tu expediente {claim.claim_number} fue {decision_label}.",
             )
 
         await audit_service.write(

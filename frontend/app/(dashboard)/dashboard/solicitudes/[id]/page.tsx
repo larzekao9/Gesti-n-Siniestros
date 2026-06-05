@@ -9,11 +9,32 @@ import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { claimRequestsApi } from '@/lib/api/claim-requests'
 import { evidencesApi } from '@/lib/api/evidences'
+import { policyholdersApi, type Policyholder } from '@/lib/api/policyholders'
+import { policiesApi, type Policy } from '@/lib/api/policies'
+import { vehiclesApi, type Vehicle } from '@/lib/api/vehicles'
 import EvidenceUploader from '@/components/claims/EvidenceUploader'
 import EvidenceGallery from '@/components/claims/EvidenceGallery'
 import type { ClaimRequest } from '@/types/claim-request'
 import type { FormalizeResponse } from '@/types/claim'
 import type { Evidence } from '@/types/evidence'
+
+// Formateadores: la API entrega fechas/horas crudas (ISO, HH:MM:SS).
+function fmtDate(s: string | null | undefined): string | null {
+  if (!s) return null
+  const d = new Date(`${s}T00:00:00`)
+  return isNaN(d.getTime()) ? s : d.toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+function fmtTime(t: string | null | undefined): string | null {
+  if (!t) return null
+  return t.slice(0, 5) // "13:11:00" → "13:11"
+}
+function fmtDateTime(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  return isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: 'Borrador', color: 'bg-gray-100 text-gray-700' },
@@ -35,15 +56,29 @@ export default function ClaimRequestDetailPage() {
   const [formalizedClaim, setFormalizedClaim] = useState<FormalizeResponse | null>(null)
   const [evidences, setEvidences] = useState<Evidence[]>([])
   const [eviLoading, setEviLoading] = useState(false)
+  const [policyholder, setPolicyholder] = useState<Policyholder | null>(null)
+  const [policy, setPolicy] = useState<Policy | null>(null)
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null)
 
   useEffect(() => {
+    let active = true
     claimRequestsApi
       .get(id)
-      .then(setRequest)
+      .then((req) => {
+        if (!active) return
+        setRequest(req)
+        // Traer las entidades relacionadas para mostrar nombres en vez de IDs.
+        policyholdersApi.get(req.policyholder_id).then((p) => active && setPolicyholder(p)).catch(() => {})
+        policiesApi.get(req.policy_id).then((p) => active && setPolicy(p)).catch(() => {})
+        vehiclesApi.get(req.vehicle_id).then((v) => active && setVehicle(v)).catch(() => {})
+      })
       .catch(() => setError('No se pudo cargar la solicitud'))
-      .finally(() => setLoading(false))
+      .finally(() => active && setLoading(false))
     setEviLoading(true)
-    evidencesApi.listForRequest(id).then((r) => setEvidences(r.items)).catch(() => {}).finally(() => setEviLoading(false))
+    evidencesApi.listForRequest(id).then((r) => active && setEvidences(r.items)).catch(() => {}).finally(() => active && setEviLoading(false))
+    return () => {
+      active = false
+    }
   }, [id])
 
   const handleTake = async () => {
@@ -98,19 +133,23 @@ export default function ClaimRequestDetailPage() {
   }
 
   const statusInfo = STATUS_MAP[request.status] || { label: request.status, color: 'bg-gray-100 text-gray-700' }
+  const coords =
+    request.accident_lat != null && request.accident_lng != null
+      ? `${Number(request.accident_lat).toFixed(6)}, ${Number(request.accident_lng).toFixed(6)}`
+      : null
+
   const fields: [string, string | null][] = [
     ['Número de solicitud', request.request_number],
-    ['Fecha del accidente', request.accident_date],
-    ['Hora del accidente', request.accident_time],
+    ['Asegurado', policyholder ? `${policyholder.full_name} · ${policyholder.document_id}` : null],
+    ['Póliza', policy ? `${policy.policy_number} · ${policy.coverage_type}` : null],
+    ['Vehículo', vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.year}) · ${vehicle.plate}` : null],
+    ['Fecha del accidente', fmtDate(request.accident_date)],
+    ['Hora del accidente', fmtTime(request.accident_time)],
     ['Ubicación', request.accident_location],
-    ['Latitud', request.accident_lat?.toString() ?? null],
-    ['Longitud', request.accident_lng?.toString() ?? null],
+    ['Coordenadas GPS', coords],
     ['Descripción', request.accident_description],
     ['Daños reportados', request.reported_damages],
-    ['ID Asegurado', request.policyholder_id],
-    ['ID Póliza', request.policy_id],
-    ['ID Vehículo', request.vehicle_id],
-    ['Enviada', request.submitted_at],
+    ['Enviada', fmtDateTime(request.submitted_at)],
   ]
 
   return (

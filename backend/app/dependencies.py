@@ -9,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.models.policyholder_account import PolicyholderAccount
 from app.models.tenant import Tenant
 from app.models.user import Role, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+insured_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/insured-auth/login")
 
 
 async def get_current_user(
@@ -33,6 +35,15 @@ async def get_current_user(
             or the account is inactive.
     """
     payload = decode_token(token)
+
+    # Retro-compat: un token sin claim `scope` se trata como 'internal'.
+    # Un token de asegurado (scope='insured') NO puede usar endpoints internos.
+    if payload.get("scope", "internal") != "internal":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de canal asegurado no válido para esta operación",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     user_id_raw: str | None = payload.get("sub")
     tenant_id_raw: str | None = payload.get("tenant_id")
@@ -162,3 +173,104 @@ def require_role(*roles: Role) -> Depends:
         return current_user
 
     return Depends(dependency)
+
+
+# ── Canal asegurado (Ciclo 7) ─────────────────────────────────────────
+
+
+async def get_current_account(
+    token: str = Depends(insured_oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> PolicyholderAccount:
+    """Resuelve y valida el JWT del asegurado (``scope='insured'``) → ``PolicyholderAccount``.
+
+    Raises:
+        HTTPException: 401 si el token es inválido, el scope no es 'insured',
+            la cuenta no existe o está inactiva.
+    """
+    payload = decode_token(token)
+
+    if payload.get("scope") != "insured":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Se requiere un token del canal asegurado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    account_id_raw: str | None = payload.get("sub")
+    tenant_id_raw: str | None = payload.get("tenant_id")
+
+    if account_id_raw is None or tenant_id_raw is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token con claims insuficientes",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        account_id = UUID(account_id_raw)
+        tenant_id = UUID(tenant_id_raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Claims de token inválidos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await db.execute(
+        select(PolicyholderAccount).where(
+            PolicyholderAccount.id == account_id,
+            PolicyholderAccount.tenant_id == tenant_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if account is None or not account.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Cuenta no encontrada o inactiva",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return account
+
+
+class Principal:
+    """Identidad autenticada que puede ser un ``User`` interno o un asegurado.
+
+    Permite que endpoints compartidos por ambos canales (p.ej.
+    ``/api/me/notifications``) despachen según el tipo de principal sin acoplar
+    la lógica a un solo scope.
+    """
+
+    def __init__(
+        self, *, user: User | None = None, account: PolicyholderAccount | None = None
+    ) -> None:
+        self.user = user
+        self.account = account
+
+    @property
+    def is_account(self) -> bool:
+        return self.account is not None
+
+    @property
+    def tenant_id(self) -> UUID:
+        return self.account.tenant_id if self.is_account else self.user.tenant_id
+
+
+async def get_current_principal(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Principal:
+    """Resuelve el principal (interno o asegurado) según el ``scope`` del JWT.
+
+    Token sin scope o ``scope='internal'`` → ``User``. ``scope='insured'`` →
+    ``PolicyholderAccount``. Reutiliza la validación de ``get_current_user`` /
+    ``get_current_account`` según corresponda.
+    """
+    payload = decode_token(token)
+    if payload.get("scope") == "insured":
+        account = await get_current_account(token=token, db=db)
+        return Principal(account=account)
+    user = await get_current_user(token=token, db=db)
+    return Principal(user=user)

@@ -19,6 +19,10 @@ class AuditLog(TenantMixin, TimestampMixin, Base):
     actor_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Actor del canal asegurado (Ciclo 7). Excluyente con actor_user_id según el origen.
+    actor_account_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("policyholder_accounts.id", ondelete="SET NULL"), nullable=True
+    )
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_id: Mapped[UUID | None] = mapped_column(nullable=True)

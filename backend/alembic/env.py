@@ -19,6 +19,9 @@ from app.models.policyholder import Policyholder  # noqa: F401
 from app.models.policy import Policy  # noqa: F401
 from app.models.vehicle import Vehicle  # noqa: F401
 from app.models.password_reset_token import PasswordResetToken  # noqa: F401
+from app.models.policyholder_account import PolicyholderAccount  # noqa: F401
+from app.models.account_refresh_token import AccountRefreshToken  # noqa: F401
+from app.models.device_token import DeviceToken  # noqa: F401
 
 config = context.config
 

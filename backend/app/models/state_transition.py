@@ -35,3 +35,7 @@ class StateTransition(TenantMixin, TimestampMixin, Base):
     actor_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Actor del canal asegurado (Ciclo 7) — p.ej. el envío de la solicitud (CU-05).
+    actor_account_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("policyholder_accounts.id", ondelete="SET NULL"), nullable=True
+    )

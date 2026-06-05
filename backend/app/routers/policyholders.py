@@ -6,15 +6,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
-from app.models.user import User
+from app.dependencies import get_current_user, require_role
+from app.models.user import Role, User
+from app.schemas.insured_auth import InviteResponse
 from app.schemas.policyholder import (
     PolicyholderCreate,
     PolicyholderListResponse,
     PolicyholderOut,
     PolicyholderUpdate,
 )
-from app.services.exceptions import ConflictError, NotFoundError
+from app.services.exceptions import (
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
+from app.services.insured_auth_service import insured_auth_service
 from app.services.policyholder_service import PolicyholderService
 
 router = APIRouter(prefix="/policyholders", tags=["policyholders"])
@@ -76,6 +82,42 @@ async def create_policyholder(
         return PolicyholderOut.model_validate(ph)
     except ConflictError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
+
+@router.post("/{policyholder_id}/invite", response_model=InviteResponse)
+async def invite_policyholder(
+    policyholder_id: UUID,
+    current_user: User = require_role(Role.ADMIN, Role.SUPERVISOR, Role.ANALYST),
+    db: AsyncSession = Depends(get_db),
+) -> InviteResponse:
+    """Genera el activation_token para que el asegurado registre su cuenta (CU-01 F-A1).
+
+    Cualquier rol interno puede invitar. NO envía mail: el token se devuelve en la
+    respuesta para que el analista lo comparta por el canal que corresponda.
+    """
+    try:
+        account = await insured_auth_service.create_invitation(
+            db,
+            policyholder_id=policyholder_id,
+            tenant_id=current_user.tenant_id,
+            actor_user_id=current_user.id,
+        )
+        await db.commit()
+        return InviteResponse(
+            account_id=account.id,
+            activation_token=account.activation_token,
+            activation_expires_at=account.activation_expires_at.isoformat(),
+            email=account.email,
+        )
+    except NotFoundError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ConflictError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except ValidationError as e:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.patch("/{policyholder_id}", response_model=PolicyholderOut)

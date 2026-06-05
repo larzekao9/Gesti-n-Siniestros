@@ -1,0 +1,76 @@
+{
+  "expo": {
+    "name": "Siniestros Asegurado",
+    "slug": "siniestros-asegurado",
+    "scheme": "siniestros",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kao.siniestrosasegurado",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Se usa la cámara para tomar fotos de los daños del siniestro.",
+        "NSPhotoLibraryUsageDescription": "Se accede a la galería para adjuntar evidencias del siniestro.",
+        "NSLocationWhenInUseUsageDescription": "Se usa la ubicación para registrar el lugar del accidente (opcional)."
+      }
+    },
+    "android": {
+      "package": "com.kao.siniestrosasegurado",
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_MEDIA_IMAGES"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permití el acceso a la cámara para fotografiar los daños del siniestro."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permití el acceso a tus fotos para adjuntar evidencias."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Se usa tu ubicación para registrar el lugar del accidente (opcional)."
+        }
+      ],
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:8000/api"
+    }
+  }
+}

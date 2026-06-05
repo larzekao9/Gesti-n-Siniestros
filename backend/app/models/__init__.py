@@ -18,6 +18,9 @@ from app.models.evidence import Evidence, EvidenceType
 from app.models.document_request import DocumentRequest, DocumentRequestStatus
 from app.models.traffic_report import TrafficReport
 from app.models.notification import Notification, NotificationKind
+from app.models.policyholder_account import PolicyholderAccount
+from app.models.account_refresh_token import AccountRefreshToken
+from app.models.device_token import DeviceToken, DevicePlatform
 
 __all__ = [
     "Base",
@@ -50,4 +53,8 @@ __all__ = [
     "TrafficReport",
     "Notification",
     "NotificationKind",
+    "PolicyholderAccount",
+    "AccountRefreshToken",
+    "DeviceToken",
+    "DevicePlatform",
 ]

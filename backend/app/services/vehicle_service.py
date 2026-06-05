@@ -41,6 +41,21 @@ class VehicleService:
         result = await db.execute(query)
         return list(result.scalars().all()), total
 
+    async def list_for_policyholder(
+        self, db: AsyncSession, *, tenant_id: UUID, policyholder_id: UUID
+    ) -> list[Vehicle]:
+        """Vehículos de un asegurado (vía sus pólizas). Canal asegurado (CU-02)."""
+        result = await db.execute(
+            select(Vehicle)
+            .join(Policy, Policy.id == Vehicle.policy_id)
+            .where(
+                Vehicle.tenant_id == tenant_id,
+                Policy.policyholder_id == policyholder_id,
+            )
+            .order_by(Vehicle.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     async def get_vehicle(
         self, db: AsyncSession, *, vehicle_id: UUID, tenant_id: UUID
     ) -> Vehicle:

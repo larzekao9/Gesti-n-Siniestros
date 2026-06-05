@@ -41,7 +41,12 @@ services:
       # - INTERNAL endpoint (server-side ops) → hostname resolvible en la red docker
       # - PUBLIC endpoint (firma de presigned URLs) → hostname accesible desde el browser del usuario
       - AWS_S3_ENDPOINT=http://localstack:4566
-      - AWS_S3_PUBLIC_ENDPOINT=http://localhost:4566
+      # PUBLIC endpoint = host al que llega quien sube/descarga (browser web o
+      # app móvil). Para probar la app móvil en un teléfono real, exportá la IP
+      # LAN de tu PC antes de `docker compose up`:
+      #   PowerShell:  $env:S3_PUBLIC_ENDPOINT = "http://192.168.100.11:4566"
+      # Default localhost sirve para el panel web en la misma PC.
+      - AWS_S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT:-http://localhost:4566}
     depends_on:
       localstack:
         condition: service_healthy

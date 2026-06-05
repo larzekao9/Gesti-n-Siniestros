@@ -32,6 +32,7 @@ class AuditService:
         entity_type: str,
         entity_id: UUID | None = None,
         actor_user_id: UUID | None = None,
+        actor_account_id: UUID | None = None,
         payload_diff: dict | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
@@ -39,6 +40,7 @@ class AuditService:
         log = AuditLog(
             tenant_id=tenant_id,
             actor_user_id=actor_user_id,
+            actor_account_id=actor_account_id,
             action=action,
             entity_type=entity_type,
             entity_id=entity_id,

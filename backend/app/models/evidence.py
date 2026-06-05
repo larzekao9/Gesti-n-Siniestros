@@ -58,6 +58,10 @@ class Evidence(TenantMixin, TimestampMixin, Base):
     uploaded_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Evidencia subida por el asegurado desde la app móvil (Ciclo 7).
+    uploaded_by_account_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("policyholder_accounts.id", ondelete="SET NULL"), nullable=True
+    )
     document_request_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("document_requests.id", ondelete="SET NULL"), nullable=True
     )

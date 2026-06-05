@@ -7,8 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim, ClaimStatus
 from app.models.document_request import DocumentRequest, DocumentRequestStatus
+from app.models.notification import NotificationKind
+from app.models.policyholder_account import PolicyholderAccount
 from app.services.audit_service import AuditService
 from app.services.exceptions import ConflictError, NotFoundError, ValidationError
+from app.services.notification_service import notification_service
 
 audit_service = AuditService()
 
@@ -55,15 +58,28 @@ class DocumentRequestService:
             payload_diff={"claim_id": str(claim_id), "description": description},
         )
 
-        # TODO Ciclo 7: notify policyholder via policyholder_account — la tabla
-        # policyholder_accounts y el canal móvil no existen hasta Ciclo 7.
-        # notification_service.create(
-        #     recipient_account_id=...,
-        #     kind=NotificationKind.DOCS_REQUESTED,
-        #     entity_type="document_request",
-        #     entity_id=doc_req.id,
-        #     ...
-        # )
+        # Retro-enganche Ciclo 7: notificar al asegurado que se le pide documentación
+        # (CU-07). Se busca la cuenta activa del policyholder del expediente. Si no
+        # tiene cuenta (asegurado sin canal móvil), create() es no-op.
+        account = await db.execute(
+            select(PolicyholderAccount).where(
+                PolicyholderAccount.policyholder_id == claim.policyholder_id,
+                PolicyholderAccount.tenant_id == tenant_id,
+                PolicyholderAccount.is_active == True,  # noqa: E712
+            )
+        )
+        account = account.scalar_one_or_none()
+        if account is not None:
+            await notification_service.create(
+                db,
+                tenant_id=tenant_id,
+                recipient_account_id=account.id,
+                entity_type="document_request",
+                entity_id=doc_req.id,
+                kind=NotificationKind.DOCS_REQUESTED,
+                title="Documentación solicitada",
+                body=f"Se te solicitó documentación para tu expediente {claim.claim_number}: {description}",
+            )
 
         await db.refresh(doc_req)
         return doc_req
@@ -107,6 +123,75 @@ class DocumentRequestService:
         # If all doc_requests for this claim are resolved, auto-transition back to in_review
         await self._auto_transition_if_all_resolved(
             db, claim_id=dr.claim_id, tenant_id=tenant_id, actor_user_id=actor_user_id
+        )
+        return dr
+
+    async def get_for_insured(
+        self,
+        db: AsyncSession,
+        *,
+        doc_request_id: UUID,
+        tenant_id: UUID,
+        policyholder_id: UUID,
+    ) -> DocumentRequest:
+        """Carga un document_request verificando que el claim sea del asegurado (CU-08).
+
+        Cross-account devuelve 404 (no filtra existencia).
+        """
+        result = await db.execute(
+            select(DocumentRequest)
+            .join(Claim, Claim.id == DocumentRequest.claim_id)
+            .where(
+                DocumentRequest.id == doc_request_id,
+                DocumentRequest.tenant_id == tenant_id,
+                Claim.policyholder_id == policyholder_id,
+            )
+        )
+        dr = result.scalar_one_or_none()
+        if dr is None:
+            raise NotFoundError("Solicitud de documentación no encontrada")
+        return dr
+
+    async def submit_by_account(
+        self,
+        db: AsyncSession,
+        *,
+        request_id: UUID,
+        tenant_id: UUID,
+        account_id: UUID,
+    ) -> DocumentRequest:
+        """Cierra un document_request cuando el asegurado adjunta la documentación (CU-08)."""
+        dr = await db.execute(
+            select(DocumentRequest).where(
+                DocumentRequest.id == request_id, DocumentRequest.tenant_id == tenant_id
+            )
+        )
+        dr = dr.scalar_one_or_none()
+        if dr is None:
+            raise NotFoundError("Solicitud de documentación no encontrada")
+
+        if dr.status != DocumentRequestStatus.PENDING:
+            raise ConflictError("La solicitud de documentación ya fue resuelta")
+
+        from datetime import datetime, timezone
+        dr.status = DocumentRequestStatus.SUBMITTED
+        dr.resolved_at = datetime.now(timezone.utc)
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="SUBMIT_DOCUMENT_REQUEST",
+            entity_type="document_request",
+            entity_id=dr.id,
+            actor_account_id=account_id,
+        )
+
+        await db.flush()
+        await db.refresh(dr)
+
+        # Auto-transición del claim si ya no quedan pedidos pendientes.
+        await self._auto_transition_if_all_resolved(
+            db, claim_id=dr.claim_id, tenant_id=tenant_id, actor_user_id=None
         )
         return dr
 

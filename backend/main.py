@@ -14,6 +14,7 @@ from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, users, policyholders, policies, vehicles, claim_requests, claims
 from app.routers import evidences, document_requests, traffic_reports, notifications
 from app.routers import analytics, reports, audit_logs
+from app.routers import insured_auth, me as me_router
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -71,6 +72,8 @@ app.include_router(notifications.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(audit_logs.router, prefix="/api")
+app.include_router(insured_auth.router, prefix="/api")
+app.include_router(me_router.router, prefix="/api")
 
 
 @app.get("/health", tags=["ops"])
