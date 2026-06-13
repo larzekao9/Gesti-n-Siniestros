@@ -35,5 +35,13 @@ class Settings(BaseSettings):
     AWS_S3_PUBLIC_ENDPOINT: str | None = None
     AWS_S3_BUCKET: str = "siniestros-evidencias"
 
+    # ── IA (Ciclo 8) ──────────────────────────────────────────────
+    OPENAI_API_KEY: str = ""
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+    OPENAI_VISION_MODEL: str = "gpt-4o-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"  # 1536 dims
+    AI_DUPLICATE_THRESHOLD: float = 0.90
+    AI_FRAUD_ALERT_THRESHOLD: float = 0.85
+
 
 settings = Settings()

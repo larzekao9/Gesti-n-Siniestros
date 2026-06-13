@@ -21,6 +21,7 @@ from app.models.notification import Notification, NotificationKind
 from app.models.policyholder_account import PolicyholderAccount
 from app.models.account_refresh_token import AccountRefreshToken
 from app.models.device_token import DeviceToken, DevicePlatform
+from app.models.ai_analysis import AIAnalysis, AIAnalysisKind, AIAnalysisStatus, ClaimEmbedding
 
 __all__ = [
     "Base",
@@ -57,4 +58,8 @@ __all__ = [
     "AccountRefreshToken",
     "DeviceToken",
     "DevicePlatform",
+    "AIAnalysis",
+    "AIAnalysisKind",
+    "AIAnalysisStatus",
+    "ClaimEmbedding",
 ]

@@ -20,6 +20,8 @@ class NotificationKind(str, enum.Enum):
     DECISION = "decision"
     STATE_CHANGE = "state_change"
     CLAIM_CREATED = "claim_created"
+    # Ciclo 8: alerta al supervisor cuando fraud_score > AI_FRAUD_ALERT_THRESHOLD.
+    AI_ALERT = "ai_alert"
 
 
 class Notification(TenantMixin, TimestampMixin, Base):

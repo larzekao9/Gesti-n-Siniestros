@@ -21,6 +21,7 @@ import AssignAnalystDialog from '@/components/claims/AssignAnalystDialog'
 import EscalateDialog from '@/components/claims/EscalateDialog'
 import DecisionPanel from '@/components/claims/DecisionPanel'
 import AuditTimeline from '@/components/audit/AuditTimeline'
+import AIAnalysisPanel from '@/components/claims/AIAnalysisPanel'
 import { useAuthStore } from '@/lib/stores/authStore'
 import type { Claim } from '@/types/claim'
 import type { Observation } from '@/types/observation'
@@ -305,8 +306,20 @@ export default function ExpedienteDetailPage() {
           {allowed.length > 0 && <Button onClick={() => setStatusOpen(true)}>Cambiar Estado</Button>}
         </div>
       </div>
+      {/* Ciclo 8: banner de alerta cuando el fraud score supera el umbral */}
+      {claim.fraud_score !== null && Number(claim.fraud_score) > 0.85 && (
+        <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center justify-between">
+          <span>
+            ⚠ <strong>Riesgo de fraude alto:</strong> el análisis IA asignó un score de{' '}
+            {(Number(claim.fraud_score) * 100).toFixed(0)}% a este expediente.
+          </span>
+          <button onClick={() => setActiveTab(6)} className="underline font-medium shrink-0 ml-4">
+            Ver análisis
+          </button>
+        </div>
+      )}
       <div className="flex border-b border-slate-200">
-        {['Resumen', 'Observaciones', 'Terceros', 'Evidencias', 'Documentación', 'Tránsito', 'Auditoría'].map((tab, i) => (
+        {['Resumen', 'Observaciones', 'Terceros', 'Evidencias', 'Documentación', 'Tránsito', 'Análisis IA', 'Auditoría'].map((tab, i) => (
           <button key={tab} onClick={() => setActiveTab(i)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${activeTab === i ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {tab}
@@ -529,8 +542,11 @@ export default function ExpedienteDetailPage() {
         </div>
       )}
 
+      {/* CU-32: análisis inteligente (Ciclo 8) */}
+      {activeTab === 6 && <AIAnalysisPanel claimId={id} userRole={user?.role} />}
+
       {/* CU-31: bitácora de auditoría del expediente */}
-      {activeTab === 6 && (
+      {activeTab === 7 && (
         <div className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Bitácora de auditoría</CardTitle></CardHeader>

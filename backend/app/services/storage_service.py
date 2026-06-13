@@ -171,5 +171,13 @@ class StorageService:
         except Exception:
             return None
 
+    def get_object_bytes(self, s3_key: str) -> bytes:
+        """Descarga el objeto completo (server-side). Usado por DamageVisionService
+        para mandar la imagen a OpenAI Vision como base64 — la URL presignada de
+        LocalStack no es alcanzable desde afuera, los bytes sí."""
+        self._ensure_client()
+        obj = self._client.get_object(Bucket=self._bucket, Key=s3_key)
+        return obj["Body"].read()
+
 
 storage_service = StorageService()

@@ -1,5 +1,6 @@
 import apiClient from './client'
 import type {
+  AIKPIs,
   AnalystProductivityResponse,
   AnalyticsFilters,
   CoverageDistributionResponse,
@@ -29,4 +30,8 @@ export const analyticsApi = {
     apiClient
       .get<AnalystProductivityResponse>('/analytics/analyst-productivity', { params })
       .then((r) => r.data),
+
+  // Fase 2 CU-21 (Ciclo 8)
+  aiKpis: (): Promise<AIKPIs> =>
+    apiClient.get<AIKPIs>('/analytics/ai-kpis').then((r) => r.data),
 }

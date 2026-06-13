@@ -377,6 +377,20 @@ class ClaimService:
             db, claim_request_id=cr.id, claim_id=claim.id, tenant_id=tenant_id
         )
 
+        # Ciclo 8 (CU-33): promover también los análisis de daño hechos sobre
+        # la solicitud — quedan con doble link (request + claim), igual que
+        # las evidencias, para que el analista los vea en el expediente.
+        from sqlalchemy import update as sa_update
+        from app.models.ai_analysis import AIAnalysis
+        await db.execute(
+            sa_update(AIAnalysis)
+            .where(
+                AIAnalysis.claim_request_id == cr.id,
+                AIAnalysis.tenant_id == tenant_id,
+            )
+            .values(claim_id=claim.id)
+        )
+
         # Retro-enganche Ciclo 7: avisar al asegurado que su solicitud se formalizó.
         if cr.created_by_account_id is not None:
             await notification_service.create(
@@ -462,6 +476,15 @@ class ClaimService:
             actor_user_id=actor_user_id,
             payload_diff={"from": old_status.value, "to": new_status, "reason": reason},
         )
+
+        # Ciclo 8: al entrar a in_evaluation se disparan los análisis IA en
+        # background (best-effort: si el broker está caído no rompe el cambio
+        # de estado; countdown=2 en la task espera el commit del router).
+        if target == CS.IN_EVALUATION:
+            from app.tasks.ai_analysis import enqueue_claim_ai_analysis
+
+            enqueue_claim_ai_analysis(tenant_id, claim.id)
+
         await db.refresh(claim)
         return claim
 
@@ -678,6 +701,14 @@ class ClaimService:
                 "reason": reason,
             },
         )
+
+        # Ciclo 8: el escalamiento deja el expediente en in_evaluation →
+        # dispara los análisis IA (mismo enganche que update_status).
+        if claim.status == ClaimStatus.IN_EVALUATION:
+            from app.tasks.ai_analysis import enqueue_claim_ai_analysis
+
+            enqueue_claim_ai_analysis(tenant_id, claim.id)
+
         await db.refresh(claim)
         return claim
 

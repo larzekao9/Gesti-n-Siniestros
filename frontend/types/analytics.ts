@@ -57,3 +57,18 @@ export interface AnalyticsFilters {
   to?: string
   analyst?: string
 }
+
+// Fase 2 de CU-21 (Ciclo 8): KPIs de IA.
+export interface TopInconsistencyItem {
+  field: string
+  count: number
+}
+
+export interface AIKPIs {
+  suspicious_claims: number
+  scored_claims: number
+  high_fraud_rate: number
+  fraud_alert_threshold: number
+  total_inconsistency_findings: number
+  top_inconsistencies: TopInconsistencyItem[]
+}

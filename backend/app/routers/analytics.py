@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.dependencies import require_role
 from app.models.user import Role, User
 from app.schemas.analytics import (
+    AIKPIsResponse,
     AnalystProductivityResponse,
     CoverageDistributionResponse,
     KPIsResponse,
@@ -18,6 +19,16 @@ from app.schemas.analytics import (
 from app.services.analytics_service import analytics_service
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+
+@router.get("/ai-kpis", response_model=AIKPIsResponse)
+async def ai_kpis(
+    current_user: User = require_role(Role.SUPERVISOR, Role.ADMIN),
+    db: AsyncSession = Depends(get_db),
+) -> AIKPIsResponse:
+    """Fase 2 de CU-21 (Ciclo 8): KPIs de IA del dashboard."""
+    data = await analytics_service.ai_kpis(db, tenant_id=current_user.tenant_id)
+    return AIKPIsResponse(**data)
 
 
 @router.get("/kpis", response_model=KPIsResponse)

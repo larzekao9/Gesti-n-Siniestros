@@ -25,6 +25,7 @@ from app.schemas.claim import (
     PublicObservationOut,
     VehicleSnippet,
 )
+from app.schemas.ai_analysis import AIAnalysisOut
 from app.schemas.claim_request import (
     ClaimRequestCreate,
     ClaimRequestOut,
@@ -306,6 +307,57 @@ async def register_my_evidence(
             out.download_url = None
         return out
     except (NotFoundError, ConflictError, ValidationError) as e:
+        await db.rollback()
+        _raise(e)
+
+
+# ── CU-33 (Ciclo 8): análisis de daño por foto — OpenAI Vision server-side ──
+
+
+@router.post(
+    "/claim-requests/{request_id}/evidences/{evidence_id}/analyze-damage",
+    response_model=AIAnalysisOut,
+)
+async def analyze_my_evidence_damage(
+    request_id: UUID,
+    evidence_id: UUID,
+    account: PolicyholderAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_db),
+):
+    """El asegurado pide el análisis de la foto del daño. La API key de
+    OpenAI vive solo en el backend (ADR-012); la app nunca la conoce.
+    Si Vision falla, devuelve el análisis con status='error' (F-A1) para
+    que la app ofrezca reintentar."""
+    try:
+        # Propiedad de la solicitud (cross-account → 404).
+        cr = await claim_request_service.get_for_account(
+            db, request_id=request_id, tenant_id=account.tenant_id, account_id=account.id
+        )
+        # La evidencia debe pertenecer a ESA solicitud y al tenant.
+        from sqlalchemy import select as sa_select
+
+        from app.models.evidence import Evidence
+
+        evidence = (
+            await db.execute(
+                sa_select(Evidence).where(
+                    Evidence.id == evidence_id,
+                    Evidence.claim_request_id == request_id,
+                    Evidence.tenant_id == account.tenant_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if evidence is None:
+            raise NotFoundError("Evidencia no encontrada")
+
+        from app.services.ai.damage_vision_service import damage_vision_service
+
+        analysis = await damage_vision_service.analyze_evidence(
+            db, tenant_id=account.tenant_id, claim_request=cr, evidence=evidence
+        )
+        await db.commit()
+        return AIAnalysisOut.model_validate(analysis)
+    except (NotFoundError, ValidationError) as e:
         await db.rollback()
         _raise(e)
 

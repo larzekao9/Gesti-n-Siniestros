@@ -7,6 +7,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.models.ai_analysis import AIAnalysis, AIAnalysisKind, AIAnalysisStatus
 from app.models.claim import Claim, ClaimDecision, ClaimStatus
 from app.models.claim_request import ClaimRequest, ClaimRequestStatus
 from app.models.policy import Policy
@@ -256,6 +258,66 @@ class AnalyticsService:
             )
         items.sort(key=lambda x: x["assigned"], reverse=True)
         return items
+
+    async def ai_kpis(
+        self,
+        db: AsyncSession,
+        *,
+        tenant_id: UUID,
+    ) -> dict:
+        """Fase 2 de CU-21 (Ciclo 8): KPIs de IA para el dashboard.
+
+        - suspicious_claims: claims con fraud_score > umbral de alerta.
+        - high_fraud_rate: proporción de claims (con score) sobre el umbral.
+        - top_inconsistencies: campos más reportados por el LLM, agregados
+          sobre el análisis de inconsistencias más reciente por claim.
+        """
+        # Claims sospechosos (fraud_score por encima del umbral de alerta).
+        threshold = settings.AI_FRAUD_ALERT_THRESHOLD
+        scored_q = select(Claim.fraud_score).where(
+            Claim.tenant_id == tenant_id, Claim.fraud_score.is_not(None)
+        )
+        scores = [float(s) for (s,) in (await db.execute(scored_q)).all() if s is not None]
+        suspicious = sum(1 for s in scores if s > threshold)
+        high_fraud_rate = round(suspicious / len(scores), 4) if scores else 0.0
+
+        # Inconsistencias: tomamos el análisis más reciente por claim (done) y
+        # contamos los campos afectados. Agregación en Python (portable).
+        inc_q = (
+            select(AIAnalysis.claim_id, AIAnalysis.payload, AIAnalysis.created_at)
+            .where(
+                AIAnalysis.tenant_id == tenant_id,
+                AIAnalysis.kind == AIAnalysisKind.INCONSISTENCY,
+                AIAnalysis.status == AIAnalysisStatus.DONE,
+            )
+            .order_by(AIAnalysis.created_at.desc())
+        )
+        seen_claims: set = set()
+        field_counts: dict[str, int] = defaultdict(int)
+        total_findings = 0
+        for claim_id, payload, _created in (await db.execute(inc_q)).all():
+            if claim_id in seen_claims:
+                continue  # solo el más reciente por claim
+            seen_claims.add(claim_id)
+            for finding in (payload or {}).get("findings", []):
+                field = (finding or {}).get("field") or "(sin campo)"
+                field_counts[field] += 1
+                total_findings += 1
+
+        top_inconsistencies = sorted(
+            ({"field": f, "count": c} for f, c in field_counts.items()),
+            key=lambda x: x["count"],
+            reverse=True,
+        )[:5]
+
+        return {
+            "suspicious_claims": suspicious,
+            "scored_claims": len(scores),
+            "high_fraud_rate": high_fraud_rate,
+            "fraud_alert_threshold": threshold,
+            "total_inconsistency_findings": total_findings,
+            "top_inconsistencies": top_inconsistencies,
+        }
 
 
 analytics_service = AnalyticsService()

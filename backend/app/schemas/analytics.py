@@ -54,3 +54,19 @@ class AnalystProductivityItem(BaseModel):
 
 class AnalystProductivityResponse(BaseModel):
     items: list[AnalystProductivityItem]
+
+
+class TopInconsistencyItem(BaseModel):
+    field: str
+    count: int
+
+
+class AIKPIsResponse(BaseModel):
+    """KPIs de IA — fase 2 de CU-21 (Ciclo 8)."""
+
+    suspicious_claims: int  # fraud_score > umbral
+    scored_claims: int  # claims con fraud_score calculado
+    high_fraud_rate: float  # suspicious / scored
+    fraud_alert_threshold: float
+    total_inconsistency_findings: int
+    top_inconsistencies: list[TopInconsistencyItem]

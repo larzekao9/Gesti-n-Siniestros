@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { FileText, FolderOpen, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { FileText, FolderOpen, CheckCircle2, XCircle, Clock, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 
 import { analyticsApi } from '@/lib/api/analytics'
 import type {
+  AIKPIs,
   AnalystProductivityItem,
   CoverageDistributionItem,
   KPIs,
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [timeline, setTimeline] = useState<TimelinePoint[]>([])
   const [coverage, setCoverage] = useState<CoverageDistributionItem[]>([])
   const [productivity, setProductivity] = useState<AnalystProductivityItem[]>([])
+  const [aiKpis, setAiKpis] = useState<AIKPIs | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
 
@@ -37,18 +39,20 @@ export default function DashboardPage() {
       ...(to ? { to } : {}),
     }
     try {
-      const [k, sd, tl, cov, prod] = await Promise.all([
+      const [k, sd, tl, cov, prod, ai] = await Promise.all([
         analyticsApi.kpis(params),
         analyticsApi.statusDistribution(params),
         analyticsApi.timeline(params),
         analyticsApi.coverageDistribution(),
         analyticsApi.analystProductivity(params),
+        analyticsApi.aiKpis(),
       ])
       setKpis(k)
       setStatusDist(sd.items)
       setTimeline(tl.items)
       setCoverage(cov.items)
       setProductivity(prod.items)
+      setAiKpis(ai)
       setForbidden(false)
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 403) {
@@ -171,7 +175,47 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* TODO Ciclo 8: KPIs de IA (casos sospechosos, % fraud score alto) — fase 2 de CU-21. */}
+          {/* Fase 2 de CU-21 (Ciclo 8): KPIs de IA */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-purple-600" />
+              <h3 className="text-sm font-semibold text-slate-700">Análisis inteligente (IA)</h3>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <p className="text-2xl font-bold text-red-600">{aiKpis?.suspicious_claims ?? 0}</p>
+                <p className="text-xs text-slate-500">
+                  Casos sospechosos (score &gt; {((aiKpis?.fraud_alert_threshold ?? 0.85) * 100).toFixed(0)}%)
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{pct(aiKpis?.high_fraud_rate)}</p>
+                <p className="text-xs text-slate-500">
+                  % con fraud score alto ({aiKpis?.scored_claims ?? 0} analizados)
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{aiKpis?.total_inconsistency_findings ?? 0}</p>
+                <p className="text-xs text-slate-500">Inconsistencias detectadas (total)</p>
+              </div>
+            </div>
+            {aiKpis && aiKpis.top_inconsistencies.length > 0 && (
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                <p className="text-xs font-medium text-slate-500">Campos más inconsistentes</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {aiKpis.top_inconsistencies.map((t) => (
+                    <span
+                      key={t.field}
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-800"
+                    >
+                      <span className="font-mono">{t.field}</span>
+                      <span className="font-semibold">{t.count}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
