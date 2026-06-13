@@ -8,6 +8,7 @@ import { Loading } from '@/components/ui/Loading'
 import { Screen } from '@/components/ui/Screen'
 import { WizardStepper } from '@/components/claim-requests/WizardStepper'
 import { EvidenceThumb } from '@/components/claim-requests/EvidenceThumb'
+import { DamageAnalysisCard } from '@/components/claim-requests/DamageAnalysisCard'
 import {
   listRequestEvidences,
   uploadRequestEvidence,
@@ -122,6 +123,24 @@ export default function EvidenciasStep() {
             ))}
           </View>
         )}
+
+        {/* CU-33: análisis de daño por foto (IA). Apoyo informativo opcional. */}
+        {evidences.some((ev) => ev.mime_type.startsWith('image/')) ? (
+          <View className="gap-3">
+            <View>
+              <Text className="text-base font-bold text-brand">Análisis de daño con IA</Text>
+              <Text className="mt-1 text-xs leading-4 text-muted">
+                Opcional: la IA estima el tipo y la severidad del daño de cada foto. No
+                afecta el envío de tu solicitud.
+              </Text>
+            </View>
+            {evidences
+              .filter((ev) => ev.mime_type.startsWith('image/'))
+              .map((ev) => (
+                <DamageAnalysisCard key={ev.id} requestId={requestId} evidence={ev} />
+              ))}
+          </View>
+        ) : null}
 
         <View className="mt-2">
           <Button
