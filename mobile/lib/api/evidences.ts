@@ -28,10 +28,12 @@ async function putToS3(uploadUrl: string, asset: LocalAsset): Promise<void> {
   }
 }
 
-/** Flujo completo de evidencia del asegurado (CU-04): presign → PUT S3 → register. */
+/** Flujo completo de evidencia del asegurado (CU-04): presign → PUT S3 → register.
+ * `metadata` opcional lleva, p.ej., el `ocr_text` extraído on-device (CU-34). */
 export async function uploadRequestEvidence(
   requestId: string,
-  asset: LocalAsset
+  asset: LocalAsset,
+  metadata?: Record<string, unknown>
 ): Promise<Evidence> {
   const { data: presign } = await api.post<PresignedUrlResponse>(
     `/me/claim-requests/${requestId}/evidences/presign`,
@@ -53,6 +55,7 @@ export async function uploadRequestEvidence(
       file_name: asset.fileName,
       mime_type: asset.mimeType,
       file_size: asset.fileSize,
+      ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
     }
   )
   return evidence

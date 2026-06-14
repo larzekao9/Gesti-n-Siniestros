@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Siniestros Asegurado",
-    "slug": "siniestros-asegurado",
+    "slug": "gestionsiniestros",
     "scheme": "siniestros",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -31,10 +31,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "READ_MEDIA_IMAGES"
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -70,7 +71,12 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://localhost:8000/api"
-    }
+      "apiBaseUrl": "http://localhost:8000/api",
+      "router": {},
+      "eas": {
+        "projectId": "d5703748-af8f-4490-b933-9ad038dc09fe"
+      }
+    },
+    "owner": "arzekaos-organization"
   }
 }

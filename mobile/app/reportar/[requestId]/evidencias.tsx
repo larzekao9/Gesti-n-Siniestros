@@ -15,6 +15,7 @@ import {
   type LocalAsset,
 } from '@/lib/api/evidences'
 import { captureFromCamera, pickFromGallery } from '@/lib/utils/media'
+import { extractText } from '@/lib/utils/ocr'
 import { colors } from '@/lib/theme'
 import type { Evidence } from '@/types/evidence'
 
@@ -49,7 +50,15 @@ export default function EvidenciasStep() {
     setBusy(true)
     try {
       for (const asset of assets) {
-        await uploadRequestEvidence(requestId, asset)
+        // CU-34: OCR on-device de imágenes (parte/factura). Si no hay texto o el
+        // nativo no está disponible (Expo Go), devuelve '' y se sube sin metadata.
+        const ocrText =
+          asset.type === 'photo' ? await extractText(asset.uri) : ''
+        await uploadRequestEvidence(
+          requestId,
+          asset,
+          ocrText ? { ocr_text: ocrText } : undefined
+        )
       }
       await refresh()
     } catch (err) {
