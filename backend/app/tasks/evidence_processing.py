@@ -3,7 +3,6 @@
 from uuid import UUID
 
 from app.core.celery_app import celery_app
-from app.core.database import async_session_factory
 from app.models.evidence import Evidence
 from app.services.audit_service import AuditService
 

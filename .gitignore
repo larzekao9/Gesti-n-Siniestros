@@ -44,6 +44,12 @@ Thumbs.db
 dist/
 build/
 
+# CU-35 — entrenamiento ML local (NO subir dataset ni credenciales)
+scripts/data/
+kaggle.json
+*.h5
+*.keras
+
 # Claude Code (private config — not for repo)
 .claude/
 CLAUDE.md

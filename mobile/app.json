@@ -65,7 +65,15 @@
           "locationWhenInUsePermission": "Se usa tu ubicación para registrar el lugar del accidente (opcional)."
         }
       ],
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

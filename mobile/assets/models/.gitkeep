@@ -1,0 +1,2 @@
+# Acá se bundlea damage_mobilenet.tflite + damage_labels.json (CU-35).
+# Se generan con scripts/train_damage_model.py (no se versionan los pesos).

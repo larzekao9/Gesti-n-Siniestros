@@ -8,6 +8,13 @@ celery_app = Celery(
     "siniestros",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
+    # El worker debe importar los módulos de tareas para registrarlas; sin esto
+    # el worker arranca sin conocer las tasks y rechaza con "unregistered task".
+    include=[
+        "app.tasks.ai_analysis",
+        "app.tasks.evidence_processing",
+        "app.tasks.report_generation",
+    ],
 )
 
 celery_app.conf.task_serializer = "json"
