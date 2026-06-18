@@ -1,0 +1,17 @@
+{
+  "input_size": 224,
+  "preprocess": "mobilenet_v2 (-1..1)",
+  "classes": [
+    "sin_dano",
+    "leve",
+    "moderado",
+    "severo"
+  ],
+  "pretty": [
+    "Sin daño",
+    "Leve",
+    "Moderado",
+    "Severo"
+  ],
+  "note": "El indice del softmax mapea a 'classes'. Umbral de confianza sugerido 0.6 (debajo -> no setear, F-A1)."
+}

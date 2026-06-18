@@ -23,6 +23,11 @@ from app.services.exceptions import NotFoundError
 _OCR_FRAGMENT_CAP = 600
 _TEXT_TOTAL_CAP = 6000
 
+# Confianza mínima para usar la severidad estimada on-device (CU-35). Por debajo
+# se ignora (F-A1 "no inventar"): el modelo es advisory, no decisión. Mismo
+# umbral que la app (mobile/lib/ml/damage.ts) y el badge web.
+_DAMAGE_CONF_MIN = 0.75
+
 
 @dataclass
 class ClaimContext:
@@ -92,6 +97,27 @@ def ocr_fragments(ctx: ClaimContext) -> list[str]:
         if text and isinstance(text, str) and text.strip():
             fragments.append(text.strip()[:_OCR_FRAGMENT_CAP])
     return fragments
+
+
+def damage_severities(ctx: ClaimContext) -> list[dict]:
+    """Severidades de daño estimadas on-device por la app del asegurado (CU-35),
+    filtradas por confianza ``>= _DAMAGE_CONF_MIN``. Simétrico a ``ocr_fragments``:
+    le da a la clasificación on-device un consumidor real (la detección de
+    inconsistencias). Cada item: ``{"severidad": str, "confianza": float}``."""
+    out: list[dict] = []
+    for ev in ctx.evidences:
+        meta = ev.metadata_ or {}
+        dc = meta.get("damage_classification")
+        if not isinstance(dc, dict):
+            continue
+        sev = dc.get("severidad")
+        conf = dc.get("confianza")
+        if not isinstance(sev, str) or not isinstance(conf, (int, float)):
+            continue
+        if float(conf) < _DAMAGE_CONF_MIN:
+            continue
+        out.append({"severidad": sev, "confianza": float(conf)})
+    return out
 
 
 def build_claim_text(ctx: ClaimContext) -> str:

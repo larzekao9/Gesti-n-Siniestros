@@ -153,6 +153,24 @@ def main() -> None:
     print(f"Dataset: {args.data_dir}")
     train_ds, val_ds = build_datasets(args.data_dir, args.batch, args.val_split)
 
+    # Checkpoint del MEJOR modelo por val_accuracy. Se reusa la MISMA instancia
+    # en ambas fases: su estado `best` persiste, asi que solo sobrescribe cuando
+    # se supera el mejor global (de cualquier fase). Garantiza que el .tflite
+    # exportado nunca sea peor que el pico alcanzado (evita el caso en que el
+    # fine-tune degrada la val_accuracy y se exporta la ultima epoca).
+    ckpt_path = repo / "scripts" / ".best.weights.h5"
+    best_ckpt = tf.keras.callbacks.ModelCheckpoint(
+        filepath=str(ckpt_path), monitor="val_accuracy", mode="max",
+        save_best_only=True, save_weights_only=True, verbose=1,
+    )
+
+    def early(patience: int):
+        # Una instancia nueva por fase (EarlyStopping resetea su estado por fit).
+        return tf.keras.callbacks.EarlyStopping(
+            monitor="val_accuracy", mode="max", patience=patience,
+            restore_best_weights=True, verbose=1,
+        )
+
     model = build_model(len(CLASS_ORDER))
     model.compile(
         optimizer=tf.keras.optimizers.Adam(1e-3),
@@ -161,24 +179,35 @@ def main() -> None:
     )
 
     print("\n== Fase 1: entrenando la cabeza (backbone congelado) ==")
-    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs_head)
+    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs_head,
+              callbacks=[best_ckpt, early(patience=4)])
 
-    print("\n== Fase 2: fine-tune de las capas superiores ==")
-    base = model._base
-    base.trainable = True
-    for layer in base.layers[:-30]:  # solo las ultimas ~30 capas
-        layer.trainable = False
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(1e-5),
-        loss="categorical_crossentropy",
-        metrics=["accuracy"],
-    )
-    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs_finetune)
+    if args.epochs_finetune > 0:
+        print("\n== Fase 2: fine-tune de las capas superiores ==")
+        base = model._base
+        base.trainable = True
+        for layer in base.layers[:-30]:  # solo las ultimas ~30 capas
+            layer.trainable = False
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(1e-5),
+            loss="categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+        model.fit(train_ds, validation_data=val_ds, epochs=args.epochs_finetune,
+                  callbacks=[best_ckpt, early(patience=4)])
+    else:
+        print("\n== Fase 2 (fine-tune) omitida por --epochs-finetune 0 ==")
+
+    # Restaura el mejor modelo global antes de evaluar y exportar.
+    if ckpt_path.exists():
+        model.load_weights(str(ckpt_path))
+        print("  Restaurado el mejor checkpoint global (mayor val_accuracy).")
 
     val_loss, val_acc = model.evaluate(val_ds)
-    print(f"\n  Val accuracy final: {val_acc:.3f}")
+    print(f"\n  Val accuracy final (mejor modelo): {val_acc:.3f}")
 
     export_tflite(model, args.out_model, args.out_labels)
+    ckpt_path.unlink(missing_ok=True)
     print("\nListo. Bundlealo en el APK (mobile/assets/models) y rebuildea.")
 
 

@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/evidences'
 import { captureFromCamera, pickFromGallery } from '@/lib/utils/media'
 import { extractText } from '@/lib/utils/ocr'
+import { classifyDamage } from '@/lib/ml/damage'
 import { colors } from '@/lib/theme'
 import type { Evidence } from '@/types/evidence'
 
@@ -50,14 +51,20 @@ export default function EvidenciasStep() {
     setBusy(true)
     try {
       for (const asset of assets) {
-        // CU-34: OCR on-device de imágenes (parte/factura). Si no hay texto o el
-        // nativo no está disponible (Expo Go), devuelve '' y se sube sin metadata.
-        const ocrText =
-          asset.type === 'photo' ? await extractText(asset.uri) : ''
+        // Solo fotos: CU-34 (OCR on-device) + CU-35 (clasificación de severidad
+        // on-device). Ambos degradan con gracia (Expo Go / sin texto / confianza
+        // baja) → si no aportan nada, la evidencia se sube igual sin metadata.
+        const metadata: Record<string, unknown> = {}
+        if (asset.type === 'photo') {
+          const ocrText = await extractText(asset.uri)
+          if (ocrText) metadata.ocr_text = ocrText
+          const damage = await classifyDamage(asset.uri)
+          if (damage) metadata.damage_classification = damage
+        }
         await uploadRequestEvidence(
           requestId,
           asset,
-          ocrText ? { ocr_text: ocrText } : undefined
+          Object.keys(metadata).length > 0 ? metadata : undefined
         )
       }
       await refresh()

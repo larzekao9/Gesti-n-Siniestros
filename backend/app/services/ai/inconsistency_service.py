@@ -10,7 +10,11 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.services.ai.claim_context import ClaimContext, ocr_fragments
+from app.services.ai.claim_context import (
+    ClaimContext,
+    damage_severities,
+    ocr_fragments,
+)
 from app.services.ai.openai_client import get_openai_client
 
 _VALID_SEVERITIES = {"info", "warning", "critical"}
@@ -24,6 +28,7 @@ Buscá específicamente:
 - Cobertura: daños declarados que las exclusiones de la póliza no cubren.
 - Vehículo: placa/marca/modelo del documento OCR que no coinciden con el vehículo asegurado.
 - Relato: contradicciones internas en la descripción (lugar, hora, mecánica del choque vs daños).
+- Severidad: la severidad del daño estimada por la app del asegurado (si está disponible) que contradice fuerte los daños declarados (ej. estima «Severo» pero se declaró un raspón menor, o estima «Leve» pero se declara una pérdida total).
 
 Respondé SOLO un JSON válido con esta forma exacta:
 {"findings": [{"severity": "info"|"warning"|"critical", "field": "<campo afectado>", "message": "<explicación breve en español>"}]}
@@ -66,6 +71,22 @@ def _build_user_prompt(ctx: ClaimContext) -> str:
             lines.append(f"--- Documento {i} ---\n{frag}")
     else:
         lines.append("## Documentos adjuntos: sin texto OCR disponible")
+
+    severities = damage_severities(ctx)
+    if severities:
+        lines.append(
+            "## Severidad del daño estimada on-device por la app del asegurado "
+            "(CU-35, advisory — modelo en el celular, NO definitiva)"
+        )
+        for i, s in enumerate(severities, 1):
+            lines.append(
+                f"- Foto {i}: severidad «{s['severidad']}» (confianza {s['confianza']:.0%})"
+            )
+        lines.append(
+            "Si esta estimación contradice fuerte los «Daños reportados», reportá un "
+            "finding de severity «warning» en field «daños/severidad». No la trates "
+            "como verdad absoluta (el modelo se puede equivocar)."
+        )
 
     evidence_types = [e.type.value for e in ctx.evidences]
     lines.append(f"## Evidencias adjuntas: {evidence_types or 'ninguna'}")

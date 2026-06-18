@@ -4,4 +4,7 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
+// CU-35: permitir bundlear el modelo .tflite como asset (react-native-fast-tflite).
+config.resolver.assetExts.push("tflite");
+
 module.exports = withNativeWind(config, { input: "./global.css" });
