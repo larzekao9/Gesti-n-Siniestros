@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # staff interno (web): sesión corta
+    # Canal asegurado (app móvil): sesión larga estilo app de consumo — el
+    # asegurado permanece logueado hasta que cierre sesión manualmente (que
+    # revoca el refresh). Separado del staff a propósito (no extender al staff).
+    INSURED_REFRESH_TOKEN_EXPIRE_DAYS: int = 365
     REDIS_URL: str = "redis://localhost:6379/0"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     ENVIRONMENT: str = "development"

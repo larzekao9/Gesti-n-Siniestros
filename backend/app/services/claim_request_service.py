@@ -318,6 +318,18 @@ class ClaimRequestService:
                 body=f"Solicitud {cr.request_number} pendiente de revisión",
             )
 
+        # Confirmación al asegurado: "recibimos tu solicitud" (push + campana).
+        await notification_service.create(
+            db,
+            tenant_id=tenant_id,
+            recipient_account_id=cr.created_by_account_id,
+            entity_type="claim_request",
+            entity_id=cr.id,
+            kind=NotificationKind.CLAIM_CREATED,
+            title="Solicitud enviada",
+            body=f"Recibimos tu solicitud {cr.request_number}. Un analista la va a revisar.",
+        )
+
         await audit_service.write(
             db,
             tenant_id=tenant_id,
@@ -385,6 +397,18 @@ class ClaimRequestService:
         )
         db.add(transition)
         await db.flush()
+
+        # Aviso al asegurado: su solicitud entró en revisión (push + campana).
+        await notification_service.create(
+            db,
+            tenant_id=tenant_id,
+            recipient_account_id=cr.created_by_account_id,
+            entity_type="claim_request",
+            entity_id=cr.id,
+            kind=NotificationKind.STATE_CHANGE,
+            title="Solicitud en revisión",
+            body=f"Un analista está revisando tu solicitud {cr.request_number or ''}.",
+        )
 
         await audit_service.write(
             db,

@@ -3,11 +3,14 @@ import { Bell, FilePlus2, Home, User } from 'lucide-react-native'
 
 import { colors } from '@/lib/theme'
 import { usePushToken } from '@/lib/hooks/usePushToken'
+import { usePushNavigation } from '@/lib/hooks/usePushNavigation'
 import { useNotifications } from '@/lib/hooks/useNotifications'
 
 export default function TabsLayout() {
   // Registra el push token al entrar al área autenticada (CU-01 paso 5).
   usePushToken()
+  // Deep-link al tocar un push (app abierta o cold start).
+  usePushNavigation()
   const { data } = useNotifications()
   const unread = data?.unread_count ?? 0
 

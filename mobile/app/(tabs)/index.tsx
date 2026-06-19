@@ -1,4 +1,4 @@
-import { FlatList, RefreshControl, Text, View } from 'react-native'
+import { Alert, FlatList, RefreshControl, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { FileText, Plus } from 'lucide-react-native'
 
@@ -8,11 +8,13 @@ import { Loading } from '@/components/ui/Loading'
 import { Screen } from '@/components/ui/Screen'
 import { ReclamoCard } from '@/components/claim-requests/ReclamoCard'
 import { useMyClaimRequests } from '@/lib/hooks/useClaims'
+import { useDeleteDraft } from '@/lib/hooks/useDraft'
 import type { InsuredClaimRequestListItem } from '@/types/claim-request'
 
 export default function HomeScreen() {
   const router = useRouter()
   const { data, isLoading, isRefetching, refetch } = useMyClaimRequests()
+  const deleteDraft = useDeleteDraft()
 
   function openItem(item: InsuredClaimRequestListItem) {
     if (item.status === 'draft') {
@@ -22,6 +24,21 @@ export default function HomeScreen() {
     } else {
       router.push(`/solicitud/${item.id}`)
     }
+  }
+
+  function confirmDelete(item: InsuredClaimRequestListItem) {
+    Alert.alert(
+      'Descartar borrador',
+      '¿Querés eliminar este borrador? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Descartar',
+          style: 'destructive',
+          onPress: () => deleteDraft.mutate(item.id),
+        },
+      ]
+    )
   }
 
   if (isLoading) return <Loading label="Cargando tus reclamos…" />
@@ -57,7 +74,11 @@ export default function HomeScreen() {
           keyExtractor={(it) => it.id}
           contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 12 }}
           renderItem={({ item }) => (
-            <ReclamoCard item={item} onPress={() => openItem(item)} />
+            <ReclamoCard
+              item={item}
+              onPress={() => openItem(item)}
+              onDelete={item.status === 'draft' ? () => confirmDelete(item) : undefined}
+            />
           )}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} />

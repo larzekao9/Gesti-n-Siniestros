@@ -333,6 +333,34 @@ async def test_reject_at_intake_notifies_insured(
 
 
 @pytest.mark.asyncio
+async def test_submit_and_take_notify_insured(async_client, user_admin, user_analyst):
+    """El asegurado recibe aviso al enviar (CU-05) y cuando un analista la toma (CU-24)."""
+    acc = await _full_account(async_client, "NOTI")
+    req_id = await _create_submittable_draft(async_client, acc)
+
+    await async_client.post(
+        f"/api/me/claim-requests/{req_id}/submit", headers=_h(acc["access_token"])
+    )
+    notifs = await async_client.get(
+        "/api/me/notifications", headers=_h(acc["access_token"])
+    )
+    titles = [n["title"] for n in notifs.json()["items"]]
+    assert "Solicitud enviada" in titles
+
+    analyst = await _login_internal(async_client, "analyst@aseguradora-a.com")
+    take = await async_client.post(
+        f"/api/claim-requests/{req_id}/take", headers=_h(analyst)
+    )
+    assert take.status_code == 200, take.text
+
+    notifs2 = await async_client.get(
+        "/api/me/notifications", headers=_h(acc["access_token"])
+    )
+    titles2 = [n["title"] for n in notifs2.json()["items"]]
+    assert "Solicitud en revisión" in titles2
+
+
+@pytest.mark.asyncio
 async def test_list_my_claim_requests(async_client, user_admin):
     acc = await _full_account(async_client, "LIST")
     await _create_submittable_draft(async_client, acc)
@@ -386,3 +414,31 @@ async def test_draft_forces_own_policyholder(async_client, user_admin):
     )
     assert draft.status_code == 201
     assert draft.json()["policyholder_id"] == acc_a["ph_id"]
+
+
+@pytest.mark.asyncio
+async def test_insured_refresh_token_uses_long_expiry(async_client, db_session, user_admin):
+    """El refresh del asegurado usa INSURED_REFRESH_TOKEN_EXPIRE_DAYS (~365 días),
+    no los 7 días del staff: la sesión móvil dura hasta el logout."""
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.models.account_refresh_token import AccountRefreshToken
+
+    admin = await _login_internal(async_client, "admin@aseguradora-a.com")
+    cat = await _make_catalog(async_client, admin, "RTEXP")
+    reg = await _invite_and_register(async_client, admin, cat["ph_id"])
+    refresh = reg["refresh_token"]
+
+    row = (
+        await db_session.execute(
+            select(AccountRefreshToken).where(AccountRefreshToken.token == refresh)
+        )
+    ).scalar_one()
+
+    exp = row.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    days_left = (exp - datetime.now(timezone.utc)).days
+    assert days_left > 300, f"refresh del asegurado deberia durar ~365 dias, no {days_left}"

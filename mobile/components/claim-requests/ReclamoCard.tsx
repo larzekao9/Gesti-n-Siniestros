@@ -1,5 +1,5 @@
-import { Text, View } from 'react-native'
-import { ChevronRight, FileText, MapPin } from 'lucide-react-native'
+import { Pressable, Text, View } from 'react-native'
+import { ChevronRight, FileText, MapPin, Trash2 } from 'lucide-react-native'
 
 import { Card } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -10,9 +10,11 @@ import type { InsuredClaimRequestListItem } from '@/types/claim-request'
 export function ReclamoCard({
   item,
   onPress,
+  onDelete,
 }: {
   item: InsuredClaimRequestListItem
   onPress: () => void
+  onDelete?: () => void
 }) {
   const title = item.request_number ?? 'Borrador sin enviar'
   return (
@@ -41,7 +43,17 @@ export function ReclamoCard({
 
       <View className="flex-row items-center justify-between">
         <StatusBadge status={item.status} />
-        {item.formalized_claim_id ? (
+        {onDelete ? (
+          <Pressable
+            onPress={onDelete}
+            hitSlop={8}
+            accessibilityLabel="Descartar borrador"
+            className="flex-row items-center gap-1.5 rounded-full bg-danger-50 px-3 py-1.5"
+          >
+            <Trash2 size={14} color={colors.danger} />
+            <Text className="text-xs font-semibold text-danger">Descartar</Text>
+          </Pressable>
+        ) : item.formalized_claim_id ? (
           <Text className="text-xs font-medium text-accent">Ver expediente →</Text>
         ) : null}
       </View>

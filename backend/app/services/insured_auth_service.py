@@ -68,8 +68,10 @@ class InsuredAuthService:
     async def _persist_refresh_token(
         self, db: AsyncSession, token: str, account: PolicyholderAccount
     ) -> AccountRefreshToken:
+        # Canal asegurado: refresh de larga vida (sesión "hasta logout"),
+        # separado del staff interno (settings.REFRESH_TOKEN_EXPIRE_DAYS).
         expires_at = datetime.now(timezone.utc) + timedelta(
-            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+            days=settings.INSURED_REFRESH_TOKEN_EXPIRE_DAYS
         )
         record = AccountRefreshToken(
             token=token,
