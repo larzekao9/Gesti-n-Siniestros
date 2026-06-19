@@ -86,11 +86,11 @@ function argmax(arr: Float32Array): number {
   return best
 }
 
-/** Clasifica la severidad del daño de una foto. Devuelve null si el modelo no
- * está disponible, si la imagen no se puede procesar, o si la confianza es baja. */
-export async function classifyDamage(
-  uri: string
-): Promise<DamageClassification | null> {
+/** Corre el MobileNet compartido sobre la foto y devuelve el softmax crudo
+ * (Float32Array por clase), o null si el nativo no está disponible o algo falla.
+ * Es el punto de reuso del modelo único (ADR-012): lo usan CU-35 (severidad,
+ * vía `classifyDamage`) y CU-36 (¿hay vehículo?, vía la confianza máxima). */
+export async function inferProbs(uri: string): Promise<Float32Array | null> {
   try {
     const pending = getModel()
     if (!pending) return null
@@ -107,18 +107,27 @@ export async function classifyDamage(
     // Un Float32Array nuevo siempre tiene un ArrayBuffer real (no SharedArrayBuffer).
     const outputs = await model.run([input.buffer as ArrayBuffer])
     const probs = new Float32Array(outputs[0])
-    if (probs.length !== CLASSES.length) return null
-
-    const idx = argmax(probs)
-    const confianza = probs[idx]
-    if (confianza < CONF_THRESHOLD) return null // F-A1
-
-    return {
-      tipo: 'daño_carroceria', // genérico por ahora (lo entrenado es la severidad)
-      severidad: PRETTY[idx] ?? CLASSES[idx],
-      confianza: Math.round(confianza * 1000) / 1000,
-    }
+    return probs.length === CLASSES.length ? probs : null
   } catch {
     return null // degradación elegante: nunca bloquea la subida
+  }
+}
+
+/** Clasifica la severidad del daño de una foto. Devuelve null si el modelo no
+ * está disponible, si la imagen no se puede procesar, o si la confianza es baja. */
+export async function classifyDamage(
+  uri: string
+): Promise<DamageClassification | null> {
+  const probs = await inferProbs(uri)
+  if (!probs) return null
+
+  const idx = argmax(probs)
+  const confianza = probs[idx]
+  if (confianza < CONF_THRESHOLD) return null // F-A1
+
+  return {
+    tipo: 'daño_carroceria', // genérico por ahora (lo entrenado es la severidad)
+    severidad: PRETTY[idx] ?? CLASSES[idx],
+    confianza: Math.round(confianza * 1000) / 1000,
   }
 }

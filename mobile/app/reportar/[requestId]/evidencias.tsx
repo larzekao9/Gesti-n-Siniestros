@@ -17,8 +17,25 @@ import {
 import { captureFromCamera, pickFromGallery } from '@/lib/utils/media'
 import { extractText } from '@/lib/utils/ocr'
 import { classifyDamage } from '@/lib/ml/damage'
+import { checkPhotoQuality } from '@/lib/ml/quality'
 import { colors } from '@/lib/theme'
 import type { Evidence } from '@/types/evidence'
+
+/** CU-36: aviso no bloqueante cuando la foto no pasa el gate de calidad.
+ * Resuelve true si el asegurado decide subir igual (F-A1), false si toma otra. */
+function confirmLowQuality(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Revisá la foto',
+      message,
+      [
+        { text: 'Tomar otra', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Subir igual', onPress: () => resolve(true) },
+      ],
+      { cancelable: false }
+    )
+  })
+}
 
 export default function EvidenciasStep() {
   const { requestId } = useLocalSearchParams<{ requestId: string }>()
@@ -56,6 +73,13 @@ export default function EvidenciasStep() {
         // baja) → si no aportan nada, la evidencia se sube igual sin metadata.
         const metadata: Record<string, unknown> = {}
         if (asset.type === 'photo') {
+          // CU-36: gate de calidad on-device antes de procesar/subir. Advisory
+          // (F-A1): si la foto está mala, avisa pero no bloquea; si el asegurado
+          // elige tomar otra, se saltea esta foto.
+          const quality = await checkPhotoQuality(asset.uri)
+          if (!quality.ok && !(await confirmLowQuality(quality.message))) {
+            continue
+          }
           const ocrText = await extractText(asset.uri)
           if (ocrText) metadata.ocr_text = ocrText
           const damage = await classifyDamage(asset.uri)
