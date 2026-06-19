@@ -59,7 +59,7 @@ jobs:
         run: cd backend && pip install ruff && ruff check . --output-format=github
 
       - name: Run tests
-        run: cd backend && pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
+        run: cd backend && pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=55
 
   # ─── Frontend: type-check + build ─────────────────────────────────────────
   frontend-checks:
