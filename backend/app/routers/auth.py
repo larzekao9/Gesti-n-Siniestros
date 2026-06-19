@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.auth import (
@@ -41,7 +42,9 @@ auth_service = AuthService()
     status_code=status.HTTP_201_CREATED,
     response_model=TokenResponse,
 )
+@limiter.limit("5/minute")  # DT-10: anti-abuso/anti-fuerza bruta
 async def register(
+    request: Request,
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
@@ -61,6 +64,7 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")  # DT-10: anti-abuso/anti-fuerza bruta
 async def login(
     request: Request,
     body: LoginRequest,
@@ -129,7 +133,9 @@ async def mfa_setup(
 
 
 @router.post("/mfa/verify")
+@limiter.limit("5/minute")  # DT-10: anti-abuso/anti-fuerza bruta
 async def mfa_verify(
+    request: Request,
     body: MFAVerifyRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

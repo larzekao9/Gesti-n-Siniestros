@@ -1,11 +1,18 @@
 """Seed de datos de prueba para desarrollo."""
 
 import asyncio
+import sys
 from datetime import date, datetime, time, timezone
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import select
+
+# DT-14: permite correr `python scripts/seed.py` (o `docker compose exec backend
+# python scripts/seed.py`) sin setear PYTHONPATH a mano — agrega la raíz del
+# backend (que contiene el paquete `app`) al sys.path antes de importar `app...`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings
 from app.core.security import hash_password

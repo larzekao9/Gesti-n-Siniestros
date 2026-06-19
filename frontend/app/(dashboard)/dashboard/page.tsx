@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { FileText, FolderOpen, CheckCircle2, XCircle, Clock, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 
+import { useAuthStore } from '@/lib/stores/authStore'
 import { analyticsApi } from '@/lib/api/analytics'
 import type {
   AIKPIs,
@@ -31,6 +33,19 @@ export default function DashboardPage() {
   const [aiKpis, setAiKpis] = useState<AIKPIs | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
+
+  const router = useRouter()
+  const role = useAuthStore((s) => s.user?.role)
+  // El dashboard de indicadores es solo para supervisor/admin (backend
+  // require_role). Al analista lo mandamos a su home real en vez de dejarlo
+  // en un mensaje muerto (consistente con que el nav ya no le muestra esta opción).
+  const canViewDashboard = role === 'admin' || role === 'supervisor'
+
+  useEffect(() => {
+    if (role && !canViewDashboard) {
+      router.replace('/dashboard/expedientes')
+    }
+  }, [role, canViewDashboard, router])
 
   const load = useCallback(async () => {
     setLoading(true)

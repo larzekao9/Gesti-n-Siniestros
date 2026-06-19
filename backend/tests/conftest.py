@@ -6,10 +6,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 from main import app
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.user import Role, User
 from app.core.security import hash_password
+
+# DT-10: el rate limiter (slowapi) limita por IP; en tests el TestClient comparte
+# la misma IP y dispararía 429 al repetir login/register. Se desactiva en tests.
+limiter.enabled = False
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

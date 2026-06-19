@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.middleware.tenant import TenantMiddleware
 from app.routers import auth, users, policyholders, policies, vehicles, claim_requests, claims
 from app.routers import evidences, document_requests, traffic_reports, notifications
@@ -41,8 +41,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Rate limiter (DT-10) — instancia compartida en app/core/limiter.py
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

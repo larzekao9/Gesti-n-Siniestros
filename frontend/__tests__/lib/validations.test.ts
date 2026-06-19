@@ -14,7 +14,9 @@ import {
 // loginSchema
 // ------------------------------------------------------------------
 describe('loginSchema', () => {
-  const valid = { email: 'user@empresa.com', password: 'secret123', mfa_code: '' }
+  // tenant_slug es requerido por loginSchema (multi-tenant). Sin él, el primer
+  // issue era el de tenant faltante y los asserts apuntaban al campo equivocado.
+  const valid = { tenant_slug: 'mi-empresa', email: 'user@empresa.com', password: 'secret123', mfa_code: '' }
 
   it('acepta valores válidos', () => {
     expect(loginSchema.safeParse(valid).success).toBe(true)

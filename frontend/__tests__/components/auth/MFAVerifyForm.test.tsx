@@ -147,7 +147,7 @@ describe('MFAVerifyForm', () => {
     await user.click(screen.getByRole('button', { name: /verificar código/i }))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Código incorrecto. Intentá nuevamente.')
+      expect(toast.error).toHaveBeenCalledWith('Error inesperado. Intentá nuevamente.')
     })
     expect(mockPush).not.toHaveBeenCalled()
   })

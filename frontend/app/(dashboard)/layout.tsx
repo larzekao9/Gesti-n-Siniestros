@@ -18,6 +18,7 @@ const NAV_ITEMS = [
     href: '/dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
+    roles: ['admin', 'supervisor'] as const,
   },
   {
     href: '/dashboard/asegurados',
@@ -44,6 +45,7 @@ const NAV_ITEMS = [
     href: '/dashboard/reportes',
     label: 'Reportes',
     icon: BarChart3,
+    roles: ['admin', 'supervisor'] as const,
   },
   {
     href: '/dashboard/expedientes',

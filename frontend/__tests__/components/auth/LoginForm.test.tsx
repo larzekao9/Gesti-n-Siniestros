@@ -63,11 +63,17 @@ vi.mock('axios', async (importOriginal) => {
 const fillAndSubmit = async (
   user: ReturnType<typeof userEvent.setup>,
   email = 'test@empresa.com',
-  password = 'Passw0rd!'
+  password = 'Passw0rd!',
+  tenantSlug = 'mi-empresa'
 ) => {
+  // tenant_slug (Organización) es requerido por loginSchema; sin llenarlo el
+  // form queda inválido y el botón nunca se habilita.
+  const tenantInput = screen.getByLabelText(/organización/i)
   const emailInput = screen.getByLabelText(/correo electrónico/i)
   const passwordInput = screen.getByLabelText('Contraseña')
 
+  await user.type(tenantInput, tenantSlug)
+  await user.tab() // blur tenant → triggers validation
   await user.type(emailInput, email)
   await user.tab() // blur email → triggers validation
   await user.type(passwordInput, password)
@@ -172,6 +178,7 @@ describe('LoginForm', () => {
 
     await waitFor(() => {
       expect(loginMock).toHaveBeenCalledWith({
+        tenant_slug: 'mi-empresa',
         email: 'test@empresa.com',
         password: 'Passw0rd!',
         mfa_code: undefined,
@@ -211,15 +218,12 @@ describe('LoginForm', () => {
   // ----------------------------------------------------------------
   // Error: 403 + MFA required
   // ----------------------------------------------------------------
-  it('error 403 con detail MFA muestra el campo de código MFA', async () => {
-    const axiosError = Object.assign(new Error('Forbidden'), {
-      isAxiosError: true,
-      response: {
-        status: 403,
-        data: { detail: 'MFA code required' },
-      },
-    })
-    loginMock.mockRejectedValueOnce(axiosError)
+  it('cuando el backend pide MFA (200 mfa_required) muestra el campo de código MFA', async () => {
+    // DT-02: el backend devuelve 200 { mfa_required: true } (no un 403) cuando
+    // hace falta el código MFA. El form muestra el campo al resolver, no al fallar.
+    loginMock.mockResolvedValueOnce({
+      mfa_required: true,
+    } as Awaited<ReturnType<typeof authApiModule.authApi.login>>)
 
     const user = userEvent.setup()
     render(<LoginForm />)

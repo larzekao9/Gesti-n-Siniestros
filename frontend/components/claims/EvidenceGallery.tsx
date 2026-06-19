@@ -129,12 +129,16 @@ export default function EvidenceGallery({ items, loading }: EvidenceGalleryProps
             <div className="p-2">
               <p className="text-xs font-medium truncate" title={item.file_name}>{item.file_name}</p>
               <p className="text-xs text-slate-400">{getTypeLabel(item.type)} &middot; {(item.file_size / 1024).toFixed(0)} KB</p>
-              {item.metadata && item.type === 'technical_report' && (
-                <div className="mt-1 text-xs text-slate-500">
-                  {item.metadata.perito_nombre && <p>Perito: {item.metadata.perito_nombre as string}</p>}
-                  {item.metadata.monto_estimado && <p>Monto: Bs {(item.metadata.monto_estimado as number).toFixed(2)}</p>}
-                </div>
-              )}
+              {item.metadata && item.type === 'technical_report' && (() => {
+                // DT-20: tipar el metadata JSONB del peritaje en vez de renderizar `unknown`.
+                const meta = item.metadata as { perito_nombre?: string; monto_estimado?: number }
+                return (
+                  <div className="mt-1 text-xs text-slate-500">
+                    {meta.perito_nombre ? <p>Perito: {meta.perito_nombre}</p> : null}
+                    {meta.monto_estimado != null ? <p>Monto: Bs {meta.monto_estimado.toFixed(2)}</p> : null}
+                  </div>
+                )
+              })()}
               {(() => {
                 // CU-35: severidad estimada on-device por la app del asegurado.
                 const dmg = getDamage(item)
