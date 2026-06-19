@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, Enum as SQLEnum, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import CheckConstraint, Enum as SQLEnum, ForeignKey, Index, Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TenantMixin, TimestampMixin

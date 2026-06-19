@@ -180,7 +180,7 @@ async def test_invite_twice_conflicts_after_active(async_client, user_admin):
 
 @pytest.mark.asyncio
 async def test_insured_login_wrong_password(async_client, user_admin):
-    acc = await _full_account(async_client, "WP")
+    await _full_account(async_client, "WP")
     resp = await async_client.post(
         "/api/insured-auth/login",
         json={
@@ -362,7 +362,7 @@ async def test_my_vehicles_and_policies_scoped(async_client, user_admin):
 @pytest.mark.asyncio
 async def test_my_vehicles_only_own_policyholder(async_client, user_admin):
     acc_a = await _full_account(async_client, "OWNA")
-    acc_b = await _full_account(async_client, "OWNB")
+    await _full_account(async_client, "OWNB")  # crea la cuenta B (efecto necesario)
     # A no debe ver el vehículo de B.
     veh_a = await async_client.get("/api/me/vehicles", headers=_h(acc_a["access_token"]))
     plates = [v["plate"] for v in veh_a.json()]

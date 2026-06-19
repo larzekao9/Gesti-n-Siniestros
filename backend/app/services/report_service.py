@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim
 from app.models.policyholder import Policyholder
-from app.models.user import User
 from app.services.analytics_service import analytics_service
 from app.services.audit_service import AuditService
 from app.services.claim_service import ClaimService

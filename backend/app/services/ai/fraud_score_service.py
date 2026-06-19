@@ -11,7 +11,7 @@ se acumulen datos reales puede reemplazarse por un modelo sin tocar el
 contrato del payload.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from app.core.config import settings
 from app.models.evidence import EvidenceType

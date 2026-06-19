@@ -10,7 +10,7 @@ from app.models.document_request import DocumentRequest, DocumentRequestStatus
 from app.models.notification import NotificationKind
 from app.models.policyholder_account import PolicyholderAccount
 from app.services.audit_service import AuditService
-from app.services.exceptions import ConflictError, NotFoundError, ValidationError
+from app.services.exceptions import ConflictError, NotFoundError
 from app.services.notification_service import notification_service
 
 audit_service = AuditService()

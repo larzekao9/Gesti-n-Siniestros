@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.ai_analysis import AIAnalysis, AIAnalysisKind, AIAnalysisStatus
-from app.models.claim import Claim, ClaimDecision, ClaimStatus
+from app.models.claim import Claim, ClaimStatus
 from app.models.claim_request import ClaimRequest, ClaimRequestStatus
 from app.models.policy import Policy
 from app.models.user import User

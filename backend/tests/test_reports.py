@@ -1,6 +1,6 @@
 """Tests for CU-22: operational report generation (PDF / Excel)."""
 
-from datetime import date, datetime, timezone
+from datetime import date
 
 import pytest
 from httpx import AsyncClient

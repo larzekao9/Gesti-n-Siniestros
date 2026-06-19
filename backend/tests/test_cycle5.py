@@ -223,7 +223,7 @@ async def test_escalate_success(async_client, user_admin, user_analyst, user_sup
 
 async def _create_and_login_analyst(async_client, user_admin):
     """Helper: login as admin, create analyst user, then login as analyst."""
-    admin_token = await _login(async_client)
+    await _login(async_client)
     return await _login(async_client, "analyst@aseguradora-a.com")
 
 

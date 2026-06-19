@@ -1,10 +1,9 @@
 """Workflow state machine service for claim_requests and claims."""
 
-from uuid import UUID
 
 from app.models.claim import ClaimStatus
 from app.models.claim_request import ClaimRequestStatus
-from app.services.exceptions import InvalidStateTransitionError, ValidationError
+from app.services.exceptions import InvalidStateTransitionError
 
 
 class WorkflowService:

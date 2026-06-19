@@ -2,9 +2,8 @@
 
 import asyncio
 import sys
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time
 from pathlib import Path
-from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import select

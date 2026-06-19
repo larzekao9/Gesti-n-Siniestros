@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_account
-from app.models.claim_request import ClaimRequestStatus
 from app.models.policyholder_account import PolicyholderAccount
 from app.schemas.claim import (
     ClaimOutInsured,

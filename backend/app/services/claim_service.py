@@ -20,7 +20,6 @@ from app.services.audit_service import AuditService
 from app.services.exceptions import (
     ConflictError,
     NotFoundError,
-    PermissionError,
     ValidationError,
 )
 from app.services.policy_service import PolicyService
@@ -555,7 +554,7 @@ class ClaimService:
             select(User).where(
                 User.id == new_analyst_user_id,
                 User.tenant_id == tenant_id,
-                User.is_active == True,
+                User.is_active.is_(True),
             )
         )
         target_user = target_user.scalar_one_or_none()
@@ -641,7 +640,7 @@ class ClaimService:
             select(User).where(
                 User.id == supervisor_user_id,
                 User.tenant_id == tenant_id,
-                User.is_active == True,
+                User.is_active.is_(True),
             )
         )
         supervisor = supervisor.scalar_one_or_none()
@@ -734,7 +733,6 @@ class ClaimService:
         if claim.decision is not None:
             raise ConflictError("El expediente ya tiene una decisión")
 
-        from app.models.claim import ClaimDecision
         from app.services.workflow_service import WorkflowService
 
         wf = WorkflowService()

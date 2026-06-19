@@ -130,7 +130,7 @@ async def main() -> None:
     print("✅ Canal asegurado listo para probar")
     print("=" * 60)
     print("\n▶ LOGIN DIRECTO (pantalla 'Ingresá a tu cuenta'):")
-    print(f"   Aseguradora : demo")
+    print("   Aseguradora : demo")
     print(f"   Email       : {active_email}")
     print(f"   Contraseña  : {ACTIVE_PASSWORD}")
     if token:

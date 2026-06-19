@@ -1,9 +1,6 @@
 """Celery tasks for post-processing uploaded evidence."""
 
-from uuid import UUID
-
 from app.core.celery_app import celery_app
-from app.models.evidence import Evidence
 from app.services.audit_service import AuditService
 
 audit_service = AuditService()
@@ -15,7 +12,6 @@ def evidence_post_processing(evidence_id: str) -> dict:
     
     Stub for now. TODO: EXIF extraction, thumbnail generation, OCR (future iterations).
     """
-    evidence_uuid = UUID(evidence_id)
     # In a full async setting we would use asyncio, but Celery tasks are sync.
     # We keep this as a stub that logs the event.
     celery_app.log.info(f"evidence_post_processing started for evidence_id={evidence_id}")

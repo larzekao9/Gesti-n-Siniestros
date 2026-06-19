@@ -12,7 +12,6 @@ from app.models.claim_request import ClaimRequest, ClaimRequestStatus
 from app.models.policy import Policy
 from app.models.policyholder import Policyholder
 from app.models.tenant import Tenant
-from app.models.user import User
 from app.models.vehicle import Vehicle
 
 HEADERS = {"X-Tenant-Slug": "aseguradora-a"}

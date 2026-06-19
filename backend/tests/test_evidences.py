@@ -4,7 +4,6 @@ import pytest
 from httpx import AsyncClient
 from datetime import date, timedelta
 
-from app.models.claim_request import ClaimRequest, ClaimRequestStatus
 
 
 def _headers(token: str) -> dict:

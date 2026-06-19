@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.claim import Claim, ClaimStatus
 from app.models.observation import Observation
 from app.services.audit_service import AuditService
-from app.services.exceptions import ConflictError, NotFoundError, ValidationError
+from app.services.exceptions import ConflictError, NotFoundError
 
 audit_service = AuditService()
 

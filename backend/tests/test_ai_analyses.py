@@ -19,7 +19,7 @@ from app.models.ai_analysis import (
     AIAnalysisStatus,
     ClaimEmbedding,
 )
-from app.models.claim import Claim, ClaimStatus
+from app.models.claim import Claim
 from app.models.evidence import Evidence, EvidenceType
 from app.models.policy import Policy
 from app.services.ai.claim_context import ClaimContext
