@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.policy import Policy
 from app.models.policyholder import Policyholder
+from app.services.audit_service import AuditService
 from app.services.exceptions import ConflictError, NotFoundError, ValidationError
+
+audit_service = AuditService()
 
 
 class PolicyService:
@@ -64,6 +67,7 @@ class PolicyService:
         valid_to: date,
         coverage_type: str,
         exclusions: str | None = None,
+        actor_user_id: UUID,
     ) -> Policy:
         if valid_from >= valid_to:
             raise ValidationError("La fecha de inicio debe ser anterior a la de fin")
@@ -95,6 +99,16 @@ class PolicyService:
         )
         db.add(policy)
         await db.flush()
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="CREATE_POLICY",
+            entity_type="policy",
+            entity_id=policy.id,
+            actor_user_id=actor_user_id,
+            payload_diff={"policy_number": policy_number, "policyholder_id": str(policyholder_id)},
+        )
         return policy
 
     async def update_policy(
@@ -109,8 +123,10 @@ class PolicyService:
         coverage_type: str | None = None,
         exclusions: str | None = None,
         status: str | None = None,
+        actor_user_id: UUID,
     ) -> Policy:
         policy = await self.get_policy(db, policy_id=policy_id, tenant_id=tenant_id)
+        changes: dict = {}
 
         if policy_number is not None and policy_number != policy.policy_number:
             existing = await db.execute(
@@ -121,6 +137,7 @@ class PolicyService:
             if existing.scalar_one_or_none() is not None:
                 raise ConflictError("Ya existe una póliza con ese número en este tenant")
             policy.policy_number = policy_number
+            changes["policy_number"] = policy_number
 
         new_from = valid_from if valid_from is not None else policy.valid_from
         new_to = valid_to if valid_to is not None else policy.valid_to
@@ -129,17 +146,32 @@ class PolicyService:
 
         if valid_from is not None:
             policy.valid_from = valid_from
+            changes["valid_from"] = valid_from.isoformat()
         if valid_to is not None:
             policy.valid_to = valid_to
+            changes["valid_to"] = valid_to.isoformat()
         if coverage_type is not None:
             policy.coverage_type = coverage_type
+            changes["coverage_type"] = coverage_type
         if exclusions is not None:
             policy.exclusions = exclusions
+            changes["exclusions"] = exclusions
         if status is not None:
             policy.status = status
+            changes["status"] = status
 
         await db.flush()
         await db.refresh(policy)
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="UPDATE_POLICY",
+            entity_type="policy",
+            entity_id=policy.id,
+            actor_user_id=actor_user_id,
+            payload_diff=changes or None,
+        )
         return policy
 
     async def is_valid_at(self, db: AsyncSession, *, policy_id: UUID, at_date: date) -> bool:

@@ -15,6 +15,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token as _create_refresh_jwt,
     decode_token,
+    generate_totp_qr_data_uri,
     generate_totp_secret,
     get_totp_uri,
     hash_password,
@@ -25,6 +26,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services.audit_service import AuditService
 from app.services.email_service import EmailService
 from app.services.exceptions import (
     AuthenticationError,
@@ -32,6 +34,9 @@ from app.services.exceptions import (
     NotFoundError,
     ValidationError,
 )
+
+
+audit_service = AuditService()
 
 
 class AuthService:
@@ -124,6 +129,15 @@ class AuthService:
         await db.commit()
         await db.refresh(user)
 
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="REGISTER",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
+
         raw_refresh = _create_refresh_jwt(
             {"sub": str(user.id), "tenant_id": str(user.tenant_id)}
         )
@@ -158,6 +172,15 @@ class AuthService:
                 return {"mfa_required": True}
             if user.mfa_secret is None or not verify_totp(user.mfa_secret, mfa_code):
                 raise AuthenticationError("Código MFA inválido")
+
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="LOGIN",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
 
         raw_refresh = _create_refresh_jwt(
             {"sub": str(user.id), "tenant_id": str(user.tenant_id)}
@@ -211,6 +234,14 @@ class AuthService:
         db_token = result.scalar_one_or_none()
         if db_token is not None and not db_token.revoked:
             db_token.revoked = True
+            await audit_service.write(
+                db,
+                tenant_id=db_token.tenant_id,
+                action="LOGOUT",
+                entity_type="user",
+                entity_id=db_token.user_id,
+                actor_user_id=db_token.user_id,
+            )
             await db.commit()
 
     # ------------------------------------------------------------------
@@ -220,8 +251,17 @@ class AuthService:
     async def setup_mfa(self, db: AsyncSession, user: User) -> dict:
         secret = generate_totp_secret()
         user.mfa_secret = secret
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="MFA_SETUP",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
         await db.commit()
-        qr_uri = get_totp_uri(secret, user.email)
+        otpauth_uri = get_totp_uri(secret, user.email)
+        qr_uri = generate_totp_qr_data_uri(otpauth_uri)
         return {"secret": secret, "qr_uri": qr_uri}
 
     # ------------------------------------------------------------------
@@ -236,6 +276,14 @@ class AuthService:
         if not verify_totp(user.mfa_secret, code):
             raise ValidationError("Código TOTP inválido")
         user.mfa_enabled = True
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="MFA_ENABLED",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
         await db.commit()
 
     # ------------------------------------------------------------------
@@ -284,6 +332,14 @@ class AuthService:
             expires_at=expires_at,
         )
         db.add(reset)
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="PASSWORD_RESET_REQUEST",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
         await db.commit()
 
         reset_link = f"{frontend_base_url}/reset-password?token={token_value}"
@@ -326,6 +382,14 @@ class AuthService:
             .values(revoked=True)
         )
 
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="PASSWORD_RESET",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
         await db.commit()
 
     # ------------------------------------------------------------------
@@ -358,4 +422,12 @@ class AuthService:
             .values(revoked=True)
         )
 
+        await audit_service.write(
+            db,
+            tenant_id=user.tenant_id,
+            action="PASSWORD_CHANGE",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+        )
         await db.commit()

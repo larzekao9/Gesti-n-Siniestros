@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.policy import Policy
 from app.models.vehicle import Vehicle
+from app.services.audit_service import AuditService
 from app.services.exceptions import ConflictError, NotFoundError, ValidationError
+
+audit_service = AuditService()
 
 
 class VehicleService:
@@ -79,6 +82,7 @@ class VehicleService:
         color: str | None = None,
         vehicle_type: str = "sedan",
         policy_id: UUID,
+        actor_user_id: UUID,
     ) -> Vehicle:
         policy_result = await db.execute(
             select(Policy).where(Policy.id == policy_id, Policy.tenant_id == tenant_id)
@@ -107,6 +111,16 @@ class VehicleService:
         )
         db.add(vehicle)
         await db.flush()
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="CREATE_VEHICLE",
+            entity_type="vehicle",
+            entity_id=vehicle.id,
+            actor_user_id=actor_user_id,
+            payload_diff={"plate": plate, "policy_id": str(policy_id)},
+        )
         return vehicle
 
     async def update_vehicle(
@@ -122,8 +136,10 @@ class VehicleService:
         vehicle_type: str | None = None,
         policy_id: UUID | None = None,
         status: str | None = None,
+        actor_user_id: UUID,
     ) -> Vehicle:
         vehicle = await self.get_vehicle(db, vehicle_id=vehicle_id, tenant_id=tenant_id)
+        changes: dict = {}
 
         if policy_id is not None and policy_id != vehicle.policy_id:
             policy_result = await db.execute(
@@ -132,22 +148,39 @@ class VehicleService:
             if policy_result.scalar_one_or_none() is None:
                 raise NotFoundError("Póliza no encontrada")
             vehicle.policy_id = policy_id
+            changes["policy_id"] = str(policy_id)
 
         if make is not None:
             vehicle.make = make
+            changes["make"] = make
         if model is not None:
             vehicle.model = model
+            changes["model"] = model
         if year is not None:
             vehicle.year = year
+            changes["year"] = year
         if color is not None:
             vehicle.color = color
+            changes["color"] = color
         if vehicle_type is not None:
             vehicle.vehicle_type = vehicle_type
+            changes["vehicle_type"] = vehicle_type
         if status is not None:
             vehicle.status = status
+            changes["status"] = status
 
         await db.flush()
         await db.refresh(vehicle)
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="UPDATE_VEHICLE",
+            entity_type="vehicle",
+            entity_id=vehicle.id,
+            actor_user_id=actor_user_id,
+            payload_diff=changes or None,
+        )
         return vehicle
 
     async def belongs_to_policy(

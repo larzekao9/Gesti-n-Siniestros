@@ -37,6 +37,7 @@ vi.mock('sonner', () => ({
 vi.mock('@/lib/api/auth', () => ({
   authApi: {
     verifyMFA: vi.fn(),
+    getMe: vi.fn(),
   },
 }))
 
@@ -45,6 +46,7 @@ vi.mock('@/lib/api/auth', () => ({
 // ------------------------------------------------------------------
 describe('MFAVerifyForm', () => {
   const verifyMFAMock = vi.mocked(authApi.authApi.verifyMFA)
+  const getMeMock = vi.mocked(authApi.authApi.getMe)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,6 +116,7 @@ describe('MFAVerifyForm', () => {
   // ----------------------------------------------------------------
   it('verificación exitosa actualiza mfa_enabled y redirige a /dashboard', async () => {
     verifyMFAMock.mockResolvedValueOnce({ message: 'MFA activado' })
+    getMeMock.mockResolvedValueOnce(mockUser({ mfa_enabled: true }))
 
     const user = userEvent.setup()
     render(<MFAVerifyForm />)

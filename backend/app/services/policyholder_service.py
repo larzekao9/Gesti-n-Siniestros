@@ -6,7 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.policyholder import Policyholder
+from app.services.audit_service import AuditService
 from app.services.exceptions import ConflictError, NotFoundError
+
+audit_service = AuditService()
 
 
 class PolicyholderService:
@@ -60,6 +63,7 @@ class PolicyholderService:
         phone: str,
         email: str | None = None,
         address: str | None = None,
+        actor_user_id: UUID,
     ) -> Policyholder:
         existing = await db.execute(
             select(Policyholder).where(
@@ -80,6 +84,16 @@ class PolicyholderService:
         )
         db.add(ph)
         await db.flush()
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="CREATE_POLICYHOLDER",
+            entity_type="policyholder",
+            entity_id=ph.id,
+            actor_user_id=actor_user_id,
+            payload_diff={"document_id": document_id, "full_name": full_name},
+        )
         return ph
 
     async def update_policyholder(
@@ -93,18 +107,35 @@ class PolicyholderService:
         email: str | None = None,
         address: str | None = None,
         status: str | None = None,
+        actor_user_id: UUID,
     ) -> Policyholder:
         ph = await self.get_policyholder(db, policyholder_id=policyholder_id, tenant_id=tenant_id)
+        changes: dict = {}
         if full_name is not None:
             ph.full_name = full_name
+            changes["full_name"] = full_name
         if phone is not None:
             ph.phone = phone
+            changes["phone"] = phone
         if email is not None:
             ph.email = email
+            changes["email"] = email
         if address is not None:
             ph.address = address
+            changes["address"] = address
         if status is not None:
             ph.status = status
+            changes["status"] = status
         await db.flush()
         await db.refresh(ph)
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="UPDATE_POLICYHOLDER",
+            entity_type="policyholder",
+            entity_id=ph.id,
+            actor_user_id=actor_user_id,
+            payload_diff=changes or None,
+        )
         return ph

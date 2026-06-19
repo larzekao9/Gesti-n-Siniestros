@@ -108,5 +108,43 @@ async def test_multitenant_isolation(async_client, db_session, tenant_a, tenant_
     token = await _login(async_client, "admin@aseguradora-a.com")
     resp = await async_client.get("/api/audit-logs", headers=_auth(token))
     assert resp.status_code == 200
-    actions = {i["action"] for i in resp.json()["items"]}
-    assert actions == {"DECIDE"}
+    items = resp.json()["items"]
+    # Aislamiento: el admin de tenant_a ve su propio DECIDE pero NUNCA el
+    # CREATE_CLAIM de tenant_b. (El LOGIN propio que el login real registra
+    # también es de tenant_a, por eso no se exige igualdad exacta.)
+    actions = {i["action"] for i in items}
+    assert "DECIDE" in actions
+    assert "CREATE_CLAIM" not in actions
+    assert all(i["tenant_id"] == str(tenant_a.id) for i in items)
+
+
+@pytest.mark.asyncio
+async def test_mutations_are_audited_end_to_end(async_client, user_admin):
+    """DT-12: las operaciones mutantes (login + CRUD de catálogo) escriben en
+    audit_logs sin necesidad de insertarlos a mano. Cierra el hueco de la
+    trazabilidad (RNF) que antes solo cubrían algunos servicios."""
+    token = await _login(async_client, "admin@aseguradora-a.com")  # escribe LOGIN
+
+    create = await async_client.post(
+        "/api/policyholders",
+        json={
+            "document_id": "AUDIT-DT12",
+            "full_name": "Auditada Perez",
+            "phone": "3000000000",
+        },
+        headers=_auth(token),
+    )
+    assert create.status_code == 201, create.text
+
+    resp = await async_client.get("/api/audit-logs", headers=_auth(token))
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    by_action = {i["action"]: i for i in items}
+
+    assert "LOGIN" in by_action
+    assert "CREATE_POLICYHOLDER" in by_action
+
+    ph_log = by_action["CREATE_POLICYHOLDER"]
+    assert ph_log["entity_type"] == "policyholder"
+    assert ph_log["actor_user_id"] == str(user_admin.id)
+    assert ph_log["payload_diff"]["document_id"] == "AUDIT-DT12"

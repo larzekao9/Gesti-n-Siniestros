@@ -226,7 +226,9 @@ async def test_mfa_setup_and_verify(
     assert setup.status_code == 200
     setup_body = setup.json()
     assert "secret" in setup_body
-    assert "qr_uri" in setup_body
+    # qr_uri debe ser una imagen PNG embebida (data URI), lista para <img src>,
+    # no el otpauth:// crudo (que el navegador no puede renderizar como imagen).
+    assert setup_body["qr_uri"].startswith("data:image/png;base64,")
 
     # Verify with a real TOTP code generated from the returned secret
     totp = pyotp.TOTP(setup_body["secret"])
@@ -239,6 +241,51 @@ async def test_mfa_setup_and_verify(
     )
     assert verify.status_code == 200
     assert verify.json()["message"] == "MFA activado"
+
+
+async def test_login_with_mfa_enabled_requires_code(
+    async_client: AsyncClient, user_admin: User, tenant_a: Tenant
+) -> None:
+    """DT-24: con MFA activo, el login SIN código devuelve 200 {mfa_required:true}
+    (no 500), y CON código válido devuelve los tokens."""
+    headers = _login_headers(tenant_a.slug)
+
+    # Activar MFA primero
+    login = await async_client.post(
+        "/api/auth/login",
+        json={"email": user_admin.email, "password": "Password123!"},
+        headers=headers,
+    )
+    access_token = login.json()["access_token"]
+    auth_headers = {"Authorization": f"Bearer {access_token}"}
+    setup = await async_client.post("/api/auth/mfa/setup", headers=auth_headers)
+    secret = setup.json()["secret"]
+    totp = pyotp.TOTP(secret)
+    await async_client.post(
+        "/api/auth/mfa/verify", json={"code": totp.now()}, headers=auth_headers
+    )
+
+    # Login SIN código → 200 con mfa_required (antes daba 500)
+    no_code = await async_client.post(
+        "/api/auth/login",
+        json={"email": user_admin.email, "password": "Password123!"},
+        headers=headers,
+    )
+    assert no_code.status_code == 200, no_code.text
+    assert no_code.json() == {"mfa_required": True}
+
+    # Login CON código → tokens
+    with_code = await async_client.post(
+        "/api/auth/login",
+        json={
+            "email": user_admin.email,
+            "password": "Password123!",
+            "mfa_code": totp.now(),
+        },
+        headers=headers,
+    )
+    assert with_code.status_code == 200, with_code.text
+    assert "access_token" in with_code.json()
 
 
 # ---------------------------------------------------------------------------

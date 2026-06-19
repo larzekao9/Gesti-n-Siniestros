@@ -63,7 +63,10 @@ async def register(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@router.post("/login", response_model=TokenResponse)
+# response_model=None: el login puede devolver TokenResponse (éxito) o el dict
+# {"mfa_required": true} (cuando falta el código TOTP). Forzar response_model a
+# TokenResponse hacía 500 en el caso MFA porque el dict no valida contra él (DT-24).
+@router.post("/login", response_model=None)
 @limiter.limit("5/minute")  # DT-10: anti-abuso/anti-fuerza bruta
 async def login(
     request: Request,

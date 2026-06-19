@@ -14,7 +14,10 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector/pgvector:pg16 = postgres:16 oficial + extensión vector (ADR-011).
+        # Debe coincidir con docker-compose.yml: los tests/migraciones de IA 
+        # crean la extensión `vector`, que postgres:16-alpine no trae.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

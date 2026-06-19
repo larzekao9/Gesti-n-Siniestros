@@ -71,6 +71,7 @@ async def create_policy(
             valid_to=body.valid_to,
             coverage_type=body.coverage_type,
             exclusions=body.exclusions,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return PolicyOut.model_validate(policy)
@@ -100,6 +101,7 @@ async def update_policy(
             coverage_type=body.coverage_type,
             exclusions=body.exclusions,
             status=body.status,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return PolicyOut.model_validate(policy)

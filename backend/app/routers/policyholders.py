@@ -77,6 +77,7 @@ async def create_policyholder(
             phone=body.phone,
             email=body.email,
             address=body.address,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return PolicyholderOut.model_validate(ph)
@@ -137,6 +138,7 @@ async def update_policyholder(
             email=body.email,
             address=body.address,
             status=body.status,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return PolicyholderOut.model_validate(ph)

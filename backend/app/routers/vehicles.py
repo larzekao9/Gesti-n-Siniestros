@@ -74,6 +74,7 @@ async def create_vehicle(
             color=body.color,
             vehicle_type=body.vehicle_type,
             policy_id=body.policy_id,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return VehicleOut.model_validate(vehicle)
@@ -104,6 +105,7 @@ async def update_vehicle(
             vehicle_type=body.vehicle_type,
             policy_id=body.policy_id,
             status=body.status,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return VehicleOut.model_validate(vehicle)

@@ -1,12 +1,15 @@
 """Security utilities: JWT creation/verification, password hashing, TOTP."""
 
+import base64
 import secrets
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import pyotp
+import qrcode
 
 from app.core.config import settings
 
@@ -127,6 +130,26 @@ def get_totp_uri(secret: str, email: str, issuer: str = "GestionSiniestros") -> 
     """
     totp = pyotp.TOTP(secret)
     return totp.provisioning_uri(name=email, issuer_name=issuer)
+
+
+def generate_totp_qr_data_uri(otpauth_uri: str) -> str:
+    """Render an otpauth:// URI as a scannable QR code embedded as a data URI.
+
+    El frontend lo usa directamente en ``<img src=...>``. Se genera server-side
+    (con la librería ``qrcode``, sin servicios externos) para que el cliente no
+    tenga que conocer el secreto ni instalar dependencias de QR.
+
+    Args:
+        otpauth_uri: The otpauth:// provisioning URI (see ``get_totp_uri``).
+
+    Returns:
+        A ``data:image/png;base64,...`` string with the QR image.
+    """
+    img = qrcode.make(otpauth_uri)
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def verify_totp(secret: str, code: str) -> bool:

@@ -109,6 +109,7 @@ async def create_user(
             password=body.password,
             full_name=body.full_name,
             role=body.role,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return UserOut.model_validate(user)
@@ -132,6 +133,7 @@ async def update_user(
             role=body.role,
             is_active=body.is_active,
             password=body.password,
+            actor_user_id=current_user.id,
         )
         await db.commit()
         return UserOut.model_validate(user)

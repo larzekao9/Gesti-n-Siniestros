@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
 from app.models.user import Role, User
+from app.services.audit_service import AuditService
 from app.services.exceptions import ConflictError, NotFoundError, ValidationError
+
+audit_service = AuditService()
 
 
 class UserService:
@@ -59,6 +62,7 @@ class UserService:
         password: str,
         full_name: str,
         role: Role,
+        actor_user_id: UUID,
     ) -> User:
         existing = await db.execute(
             select(User).where(User.email == email, User.tenant_id == tenant_id)
@@ -75,6 +79,19 @@ class UserService:
         )
         db.add(user)
         await db.flush()
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="CREATE_USER",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=actor_user_id,
+            payload_diff={
+                "email": email,
+                "role": role.value if hasattr(role, "value") else str(role),
+            },
+        )
         return user
 
     async def update_user(
@@ -87,8 +104,10 @@ class UserService:
         role: Role | None = None,
         is_active: bool | None = None,
         password: str | None = None,
+        actor_user_id: UUID,
     ) -> User:
         user = await self.get_user(db, user_id=user_id, tenant_id=tenant_id)
+        changes: dict = {}
 
         if is_active is False and user.role == Role.ADMIN:
             count = await db.execute(
@@ -117,14 +136,28 @@ class UserService:
                         "No se puede cambiar el rol del último administrador"
                     )
             user.role = role
+            changes["role"] = role.value if hasattr(role, "value") else str(role)
 
         if full_name is not None:
             user.full_name = full_name
+            changes["full_name"] = full_name
         if is_active is not None:
             user.is_active = is_active
+            changes["is_active"] = is_active
         if password is not None:
             user.hashed_password = hash_password(password)
+            changes["password_changed"] = True
 
         await db.flush()
         await db.refresh(user)
+
+        await audit_service.write(
+            db,
+            tenant_id=tenant_id,
+            action="UPDATE_USER",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=actor_user_id,
+            payload_diff=changes or None,
+        )
         return user

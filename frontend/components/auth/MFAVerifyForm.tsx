@@ -34,14 +34,24 @@ export function MFAVerifyForm() {
     setIsSubmitting(true)
     try {
       await authApi.verifyMFA(values.code)
-      // Update MFA enabled state in the store if the user is present
-      if (user && accessToken) {
-        setAuth(
-          { ...user, mfa_enabled: true },
-          accessToken,
-          localStorage.getItem('siniestros_rt') ?? '',
-          tenantSlug ?? ''
-        )
+      // Refrescar el usuario desde el servidor para reflejar el estado real
+      // (mfa_enabled = true). Si /me fallara, caemos al update optimista para
+      // no dejar el badge desactualizado — el verify ya activó MFA en el server.
+      if (accessToken) {
+        const refreshToken = localStorage.getItem('siniestros_rt') ?? ''
+        try {
+          const freshUser = await authApi.getMe()
+          setAuth(freshUser, accessToken, refreshToken, tenantSlug ?? '')
+        } catch {
+          if (user) {
+            setAuth(
+              { ...user, mfa_enabled: true },
+              accessToken,
+              refreshToken,
+              tenantSlug ?? ''
+            )
+          }
+        }
       }
       toast.success('Autenticación en dos pasos activada correctamente')
       router.push('/dashboard')
