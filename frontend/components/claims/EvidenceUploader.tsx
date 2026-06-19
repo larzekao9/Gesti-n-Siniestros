@@ -20,16 +20,6 @@ const EVIDENCE_TYPES = [
   { value: 'other', label: 'Otro' },
 ]
 
-const MIME_TO_TYPE: Record<string, string> = {
-  'image/jpeg': 'photo',
-  'image/png': 'photo',
-  'image/gif': 'photo',
-  'image/webp': 'photo',
-  'video/mp4': 'video',
-  'video/quicktime': 'video',
-  'application/pdf': 'invoice',
-}
-
 interface EvidenceUploaderProps {
   subjectType: 'claim' | 'claim_request'
   subjectId: string

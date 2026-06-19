@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { ArrowUpRight, FileText } from 'lucide-react'
 import { claimsApi } from '@/lib/api/claims'
 import { useAuthStore } from '@/lib/stores/authStore'
-import { Button } from '@/components/ui/button'
 import type { Claim } from '@/types/claim'
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {

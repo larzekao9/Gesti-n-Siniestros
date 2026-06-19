@@ -42,8 +42,9 @@ export default function EscalateDialog({ open, onClose, claimId, onEscalated }: 
       toast.success('Expediente escalado')
       onEscalated(claim)
       onClose()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Error al escalar')
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail || 'Error al escalar')
     } finally {
       setSubmitting(false)
     }

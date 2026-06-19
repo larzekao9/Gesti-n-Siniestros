@@ -505,7 +505,7 @@ export default function ExpedienteDetailPage() {
                 <div><Label>Fecha del acta</Label><Input type="date" value={trForm.report_date} onChange={(e) => setTrForm({ ...trForm, report_date: e.target.value })} /></div>
               </div>
               <div><Label>Resumen</Label><Textarea value={trForm.summary} onChange={(e) => setTrForm({ ...trForm, summary: e.target.value })} placeholder="Resumen del acta de tránsito..." rows={3} /></div>
-              <p className="text-xs text-slate-400">Para adjuntar el archivo del acta, usá la pestaña "Evidencias" con tipo "Acta de tránsito".</p>
+              <p className="text-xs text-slate-400">Para adjuntar el archivo del acta, usá la pestaña “Evidencias” con tipo “Acta de tránsito”.</p>
               <div className="flex gap-2">
                 <Button onClick={handleSaveTr} disabled={trSubmitting}>{trSubmitting ? 'Guardando...' : editingTrId ? 'Actualizar' : 'Registrar'}</Button>
                 {editingTrId && <Button variant="ghost" onClick={() => { setTrForm({ officer_name: '', report_code: '', jurisdiction: '', report_date: '', summary: '' }); setEditingTrId(null) }}>Cancelar</Button>}

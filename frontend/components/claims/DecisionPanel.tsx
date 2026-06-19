@@ -29,8 +29,9 @@ export default function DecisionPanel({ open, onClose, claimId, onDecided }: Pro
       toast.success(`Expediente ${decision === 'approved' ? 'aprobado' : 'rechazado'}`)
       onDecided(claim)
       onClose()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Error al decidir')
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail || 'Error al decidir')
     } finally {
       setSubmitting(false)
     }

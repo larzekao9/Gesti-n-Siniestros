@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { notificationsApi } from '@/lib/api/notifications'
-import type { Notification, NotificationListResponse } from '@/types/notification'
+import type { NotificationListResponse } from '@/types/notification'
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -18,7 +18,7 @@ export function useNotifications() {
         const res = await notificationsApi.list({ page, limit, unread_only: unreadOnly })
         setData(res)
         setError(null)
-      } catch (err) {
+      } catch {
         setError('Error al cargar notificaciones')
       } finally {
         setLoading(false)

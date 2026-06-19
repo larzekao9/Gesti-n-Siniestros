@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Download, Eye, Image, Film, FileText, File, Gauge } from 'lucide-react'
 import { evidencesApi } from '@/lib/api/evidences'
 import { Button } from '@/components/ui/button'
