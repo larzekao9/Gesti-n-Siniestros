@@ -92,8 +92,13 @@ async function toGray(
   return { gray, width, height }
 }
 
-/** Gate de calidad de la foto (CU-36). Advisory: nunca bloquea (F-A1). */
-export async function checkPhotoQuality(uri: string): Promise<QualityResult> {
+/** Gate de calidad de la foto (CU-36). Advisory: nunca bloquea (F-A1).
+ * `vehicleCheck` (default true) corre el "¿hay vehículo?"; se apaga para
+ * documentos (un papel no es un auto, pero blur/brillo igual importan al OCR). */
+export async function checkPhotoQuality(
+  uri: string,
+  opts: { vehicleCheck?: boolean } = {}
+): Promise<QualityResult> {
   const issues: QualityIssue[] = []
   try {
     const g = await toGray(uri)
@@ -107,13 +112,16 @@ export async function checkPhotoQuality(uri: string): Promise<QualityResult> {
       }
     }
 
-    // "¿hay un vehículo?" con el MobileNet compartido (CU-35). Si el nativo no
-    // está disponible (Expo Go), inferProbs devuelve null y se omite el check.
-    const probs = await inferProbs(uri)
-    if (probs) {
-      let maxP = 0
-      for (let i = 0; i < probs.length; i++) if (probs[i] > maxP) maxP = probs[i]
-      if (maxP < VEHICLE_MIN_CONF) issues.push('no_vehicle')
+    // "¿hay un vehículo?" con el modelo compartido (CU-35). Solo para fotos del
+    // daño (no documentos). Si el nativo no está disponible (Expo Go), inferProbs
+    // devuelve null y se omite el check.
+    if (opts.vehicleCheck !== false) {
+      const probs = await inferProbs(uri)
+      if (probs) {
+        let maxP = 0
+        for (let i = 0; i < probs.length; i++) if (probs[i] > maxP) maxP = probs[i]
+        if (maxP < VEHICLE_MIN_CONF) issues.push('no_vehicle')
+      }
     }
   } catch {
     // Ante cualquier error no trabamos la subida: tratamos como ok (F-A1).

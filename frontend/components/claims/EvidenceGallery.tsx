@@ -13,16 +13,15 @@ interface EvidenceGalleryProps {
 
 // CU-35: severidad de daño estimada on-device por la app del asegurado.
 // Mismo umbral de confianza que mobile/backend: por debajo no se muestra (F-A1).
-const DAMAGE_CONF_MIN = 0.75
-const SEV_RANK: Record<string, number> = { 'Sin daño': 0, Leve: 1, Moderado: 2, Severo: 3 }
+// El modelo YOLO tiene 3 clases (Leve/Moderado/Severo) — ya no existe "Sin daño".
+const DAMAGE_CONF_MIN = 0.65
+const SEV_RANK: Record<string, number> = { Leve: 0, Moderado: 1, Severo: 2 }
 const SEV_STYLE: Record<string, string> = {
-  'Sin daño': 'bg-slate-100 text-slate-600',
   Leve: 'bg-emerald-100 text-emerald-700',
   Moderado: 'bg-amber-100 text-amber-700',
   Severo: 'bg-red-100 text-red-700',
 }
 const SEV_ACCENT: Record<string, string> = {
-  'Sin daño': 'border-slate-300 text-slate-500',
   Leve: 'border-emerald-400 text-emerald-600',
   Moderado: 'border-amber-400 text-amber-600',
   Severo: 'border-red-400 text-red-600',
@@ -147,7 +146,7 @@ export default function EvidenceGallery({ items, loading }: EvidenceGalleryProps
                     className={`mt-1 inline-block rounded px-2 py-0.5 text-[11px] font-semibold ${SEV_STYLE[dmg.severidad] ?? 'bg-slate-100 text-slate-600'}`}
                     title={`Nivel de daño estimado por el teléfono del asegurado a partir de esta foto (${Math.round(dmg.confianza * 100)}% de certeza).`}
                   >
-                    {dmg.severidad === 'Sin daño' ? 'Sin daño' : `Daño ${dmg.severidad.toLowerCase()}`} · {Math.round(dmg.confianza * 100)}%
+                    Daño {dmg.severidad.toLowerCase()} · {Math.round(dmg.confianza * 100)}%
                   </span>
                 ) : null
               })()}

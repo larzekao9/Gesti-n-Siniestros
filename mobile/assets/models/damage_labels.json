@@ -1,17 +1,15 @@
 {
-  "input_size": 224,
-  "preprocess": "mobilenet_v2 (-1..1)",
+  "input_size": 128,
+  "preprocess": "yolo (0..1, x/255)",
   "classes": [
-    "sin_dano",
     "leve",
     "moderado",
     "severo"
   ],
   "pretty": [
-    "Sin daño",
     "Leve",
     "Moderado",
     "Severo"
   ],
-  "note": "El indice del softmax mapea a 'classes'. Umbral de confianza sugerido 0.6 (debajo -> no setear, F-A1)."
+  "note": "Modelo YOLOv8-cls (car-damage, ver MODELO-IA.md). El indice del softmax mapea a 'classes' (01-minor/02-moderate/03-severe). Umbral sugerido 0.65 (debajo -> no setear, F-A1). YA NO existe la clase sin_dano: un auto sano da confianza baja y se suprime."
 }

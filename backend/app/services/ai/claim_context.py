@@ -25,8 +25,9 @@ _TEXT_TOTAL_CAP = 6000
 
 # Confianza mínima para usar la severidad estimada on-device (CU-35). Por debajo
 # se ignora (F-A1 "no inventar"): el modelo es advisory, no decisión. Mismo
-# umbral que la app (mobile/lib/ml/damage.ts) y el badge web.
-_DAMAGE_CONF_MIN = 0.75
+# umbral que la app (mobile/lib/ml/damage.ts) y el badge web. El modelo YOLO no
+# tiene clase "sin daño": un auto sano da confianza baja y queda por debajo.
+_DAMAGE_CONF_MIN = 0.65
 
 
 @dataclass

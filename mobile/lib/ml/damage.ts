@@ -1,4 +1,4 @@
-// CU-35: clasificación de severidad de daño on-device (TFLite / MobileNetV2).
+// CU-35: clasificación de severidad de daño on-device (TFLite / YOLOv8-cls).
 // Corre offline en el APK vía react-native-fast-tflite. El resultado
 // { tipo, severidad, confianza } viaja en metadata.damage_classification al
 // registrar la evidencia (mismo canal que el ocr_text de CU-34).
@@ -34,15 +34,14 @@ try {
   loadModel = null
 }
 
-const INPUT_SIZE: number = (labels as { input_size?: number }).input_size ?? 224
+const INPUT_SIZE: number = (labels as { input_size?: number }).input_size ?? 128
 const CLASSES: string[] = (labels as { classes: string[] }).classes
 const PRETTY: string[] = (labels as { pretty?: string[] }).pretty ?? CLASSES
-// Umbral de confianza (debajo → no setear, F-A1 "no inventar"). Se subió de
-// 0.6 a 0.75: con accuracy ~0.69, las predicciones flojas (apenas sobre 0.6)
-// suelen ser erradas — mejor callar que mostrar una severidad equivocada. El
-// consumo (web/backend) también filtra por 0.75, así que datos viejos por
-// debajo quedan suprimidos sin rebuild.
-const CONF_THRESHOLD = 0.75
+// Umbral de confianza (debajo → no setear, F-A1 "no inventar"). Con el modelo
+// YOLOv8-cls, un auto SIN daño (que no tiene clase propia, ya no existe sin_dano)
+// da confianza baja (~0.4-0.6) → con 0.65 se suprime; leve/severo confiables la
+// superan. El consumo (web/backend) filtra por el mismo umbral.
+const CONF_THRESHOLD = 0.65
 
 // El modelo se carga una sola vez y se cachea entre fotos.
 let modelPromise: Promise<TfliteLike> | null = null
@@ -50,7 +49,7 @@ function getModel(): Promise<TfliteLike> | null {
   if (!loadModel) return null
   if (!modelPromise) {
     modelPromise = loadModel(
-      require('../../assets/models/damage_mobilenet.tflite'),
+      require('../../assets/models/damage_model.tflite'),
       []
     ).catch((e) => {
       modelPromise = null // permite reintentar en la próxima foto
@@ -60,7 +59,7 @@ function getModel(): Promise<TfliteLike> | null {
   return modelPromise
 }
 
-/** JPEG (base64) → Float32 [H*W*3] normalizado a [-1,1] (preprocess MobileNetV2). */
+/** JPEG (base64) → Float32 [H*W*3] normalizado a [0,1] (preprocess YOLO: x/255). */
 function toInputTensor(base64: string): Float32Array {
   const bytes = toByteArray(base64)
   const { data, width, height } = jpeg.decode(bytes, {
@@ -71,9 +70,9 @@ function toInputTensor(base64: string): Float32Array {
   let j = 0
   for (let i = 0; i < width * height; i++) {
     const p = i * 4 // RGBA → tomamos RGB, descartamos alpha
-    out[j++] = data[p] / 127.5 - 1
-    out[j++] = data[p + 1] / 127.5 - 1
-    out[j++] = data[p + 2] / 127.5 - 1
+    out[j++] = data[p] / 255
+    out[j++] = data[p + 1] / 255
+    out[j++] = data[p + 2] / 255
   }
   return out
 }
@@ -86,7 +85,7 @@ function argmax(arr: Float32Array): number {
   return best
 }
 
-/** Corre el MobileNet compartido sobre la foto y devuelve el softmax crudo
+/** Corre el modelo compartido sobre la foto y devuelve el softmax crudo
  * (Float32Array por clase), o null si el nativo no está disponible o algo falla.
  * Es el punto de reuso del modelo único (ADR-012): lo usan CU-35 (severidad,
  * vía `classifyDamage`) y CU-36 (¿hay vehículo?, vía la confianza máxima). */
