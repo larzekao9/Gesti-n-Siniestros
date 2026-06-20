@@ -81,7 +81,47 @@ npx expo start --android  # emulador Android
    **notificación push** y aparece en "Avisos".
 6. Si te **piden documentación**, entrá al expediente y **adjuntá** desde "Mis reclamos".
 
-## Build con EAS (APK para el docente)
+## Build LOCAL del APK (recomendado)
+
+> ⚠️ **REQUISITO: la ruta del proyecto NO debe tener espacios, o el build nativo FALLA**
+> (Gradle/NDK y el C++ de `react-native-worklets`). Esta copia del repo vive en una ruta con
+> espacios (`Matoneadas De desarrollo/Proyecto Kao sw1`), así que en **cualquier máquina**
+> (Windows o macOS) hay que **copiar `mobile/` a una carpeta cuya ruta completa no tenga
+> espacios** y buildear desde ahí. Un *junction*/symlink NO alcanza (CMake resuelve la ruta real).
+
+**Requisitos (ajustar a tu máquina):**
+- **JDK 17 exacto** (RN 0.81 / SDK 54 no funciona con JDK 19+).
+- **Android SDK** con NDK 27.x (`ANDROID_HOME`) + un dispositivo por USB con depuración activada.
+- Backend levantado (`docker compose up`); el celu llega al backend por `adb reverse tcp:8000 tcp:8000`.
+
+Pasos completos también en `Context.md` §6.7.5. Resumen por sistema:
+
+**Windows (PowerShell):**
+```powershell
+robocopy ".\mobile" C:\dev\siniestros-mobile /E /XD node_modules .git android ios .expo
+cd C:\dev\siniestros-mobile
+npm install --legacy-peer-deps
+$env:JAVA_HOME = "C:\ruta\a\jdk17"               # un JDK 17 cualquiera
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+adb reverse tcp:8000 tcp:8000
+npx expo run:android
+```
+
+**macOS / Linux (bash/zsh):**
+```bash
+rsync -a --exclude node_modules --exclude .git --exclude android \
+      --exclude ios --exclude .expo ./mobile/ ~/dev/siniestros-mobile/
+cd ~/dev/siniestros-mobile
+npm install --legacy-peer-deps
+export JAVA_HOME="$(/usr/libexec/java_home -v 17)"   # JDK 17 (en Linux: ruta a tu JDK 17)
+export ANDROID_HOME="$HOME/Library/Android/sdk"      # en Linux: $HOME/Android/Sdk
+adb reverse tcp:8000 tcp:8000
+npx expo run:android
+```
+
+> La copia **no es symlink**: re-correr el `robocopy`/`rsync` cada vez que cambie el código móvil.
+
+## Build con EAS (fallback cloud)
 
 `eas.json` trae 3 perfiles: `development`, `preview`, `production`.
 
