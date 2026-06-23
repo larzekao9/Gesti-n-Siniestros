@@ -30,6 +30,11 @@ export default function ReportPreview({ filters }: { filters: ReportFilters }) {
           <span className="font-medium">Estado:</span>{' '}
           {filters.status ? STATUS_LABELS[filters.status] ?? filters.status : 'Todos'}
         </li>
+        {filters.q && (
+          <li>
+            <span className="font-medium">Búsqueda:</span> {filters.q}
+          </li>
+        )}
       </ul>
     </div>
   )

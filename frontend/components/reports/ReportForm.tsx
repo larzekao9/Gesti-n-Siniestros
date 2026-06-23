@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, FileSpreadsheet, Loader2 } from 'lucide-react'
+import { FileText, FileSpreadsheet, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { isAxiosError } from 'axios'
 
@@ -9,6 +9,7 @@ import { reportsApi } from '@/lib/api/reports'
 import type { ReportFilters, ReportFormat } from '@/types/report'
 import { Button } from '@/components/ui/button'
 import ReportPreview from './ReportPreview'
+import VoiceReportControl from './VoiceReportControl'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos los estados' },
@@ -22,10 +23,20 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: 'Cerrado' },
 ]
 
+// Etiqueta legible de un filtro resuelto por voz (analista, supervisor, asegurado).
+interface ResolvedRef {
+  id: string
+  label: string
+}
+
 export default function ReportForm() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [status, setStatus] = useState('')
+  const [q, setQ] = useState('')
+  const [analyst, setAnalyst] = useState<ResolvedRef | null>(null)
+  const [supervisor, setSupervisor] = useState<ResolvedRef | null>(null)
+  const [policyholder, setPolicyholder] = useState<ResolvedRef | null>(null)
   const [downloading, setDownloading] = useState<ReportFormat | null>(null)
 
   const filters: ReportFilters = {
@@ -33,6 +44,10 @@ export default function ReportForm() {
     from: from || undefined,
     to: to || undefined,
     status: status || undefined,
+    q: q || undefined,
+    analyst: analyst?.id,
+    supervisor: supervisor?.id,
+    policyholder: policyholder?.id,
   }
 
   const handleDownload = async (format: ReportFormat) => {
@@ -51,12 +66,32 @@ export default function ReportForm() {
     }
   }
 
+  // Aplica los filtros que vinieron del pedido por voz (paso de confirmación).
+  const applyVoiceFilters = (
+    f: ReportFilters,
+    interpretation: { resolved: { analyst_label?: string | null; supervisor_label?: string | null; policyholder_label?: string | null } }
+  ) => {
+    setFrom(f.from ?? '')
+    setTo(f.to ?? '')
+    setStatus(f.status ?? '')
+    setQ(f.q ?? '')
+    setAnalyst(f.analyst ? { id: f.analyst, label: interpretation.resolved.analyst_label ?? f.analyst } : null)
+    setSupervisor(
+      f.supervisor ? { id: f.supervisor, label: interpretation.resolved.supervisor_label ?? f.supervisor } : null
+    )
+    setPolicyholder(
+      f.policyholder ? { id: f.policyholder, label: interpretation.resolved.policyholder_label ?? f.policyholder } : null
+    )
+  }
+
   const inputCls =
     'mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900'
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
+        <VoiceReportControl onApply={applyVoiceFilters} />
+
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-700">Filtros del reporte</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -79,6 +114,36 @@ export default function ReportForm() {
               </select>
             </label>
           </div>
+
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-slate-500">
+              Búsqueda libre (placa, expediente, lugar)
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Ej.: ABC-123, EXP-2026-000004, Av. Busch"
+                className={inputCls}
+              />
+            </label>
+          </div>
+
+          {(analyst || supervisor || policyholder) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {analyst && (
+                <FilterChip label={`Analista: ${analyst.label}`} onClear={() => setAnalyst(null)} />
+              )}
+              {supervisor && (
+                <FilterChip label={`Supervisor: ${supervisor.label}`} onClear={() => setSupervisor(null)} />
+              )}
+              {policyholder && (
+                <FilterChip
+                  label={`Asegurado: ${policyholder.label}`}
+                  onClear={() => setPolicyholder(null)}
+                />
+              )}
+            </div>
+          )}
 
           <div className="mt-5 flex flex-wrap gap-3">
             <Button onClick={() => handleDownload('pdf')} disabled={downloading !== null}>
@@ -107,5 +172,16 @@ export default function ReportForm() {
 
       <ReportPreview filters={filters} />
     </div>
+  )
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
+      {label}
+      <button type="button" onClick={onClear} className="rounded-full hover:bg-indigo-200">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   )
 }

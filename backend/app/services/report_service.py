@@ -55,6 +55,9 @@ class ReportService:
         to_date: date | None,
         status: str | None,
         analyst_id: str | None,
+        q: str | None = None,
+        policyholder_id: str | None = None,
+        supervisor_id: str | None = None,
     ) -> tuple[dict, list[dict]]:
         kpis = await analytics_service.get_kpis(
             db,
@@ -71,10 +74,13 @@ class ReportService:
             batch, total = await claim_service.search(
                 db,
                 tenant_id=tenant_id,
+                q=q,
                 status=status,
                 from_date=from_date,
                 to_date=to_date,
                 analyst_id=analyst_id,
+                supervisor_id=supervisor_id,
+                policyholder_id=policyholder_id,
                 page=page,
                 limit=200,
             )
@@ -235,6 +241,9 @@ class ReportService:
         to_date: date | None = None,
         status: str | None = None,
         analyst_id: str | None = None,
+        q: str | None = None,
+        policyholder_id: str | None = None,
+        supervisor_id: str | None = None,
     ) -> tuple[bytes, str, str]:
         """Return ``(content, media_type, filename)`` for the requested report."""
         kpis, rows = await self._collect(
@@ -244,6 +253,9 @@ class ReportService:
             to_date=to_date,
             status=status,
             analyst_id=analyst_id,
+            q=q,
+            policyholder_id=policyholder_id,
+            supervisor_id=supervisor_id,
         )
         title = "Reporte operativo de siniestros"
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -273,6 +285,9 @@ class ReportService:
                     "to": to_date.isoformat() if to_date else None,
                     "status": status,
                     "analyst": analyst_id,
+                    "supervisor": supervisor_id,
+                    "policyholder": policyholder_id,
+                    "q": q,
                 },
             },
         )

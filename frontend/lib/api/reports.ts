@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { ReportFilters } from '@/types/report'
+import type { ReportFilters, VoiceReportInterpretation } from '@/types/report'
 
 function filenameFromDisposition(header: string | undefined, fallback: string): string {
   if (!header) return fallback
@@ -10,7 +10,7 @@ function filenameFromDisposition(header: string | undefined, fallback: string): 
 export const reportsApi = {
   /** Descarga el reporte de siniestros como archivo (PDF o Excel). */
   downloadClaimsReport: async (filters: ReportFilters): Promise<void> => {
-    const { format, from, to, status, analyst } = filters
+    const { format, from, to, status, analyst, supervisor, policyholder, q } = filters
     const response = await apiClient.get('/reports/claims', {
       params: {
         format,
@@ -18,6 +18,9 @@ export const reportsApi = {
         ...(to ? { to } : {}),
         ...(status ? { status } : {}),
         ...(analyst ? { analyst } : {}),
+        ...(supervisor ? { supervisor } : {}),
+        ...(policyholder ? { policyholder } : {}),
+        ...(q ? { q } : {}),
       },
       responseType: 'blob',
     })
@@ -37,5 +40,22 @@ export const reportsApi = {
     link.click()
     link.remove()
     window.URL.revokeObjectURL(url)
+  },
+
+  /**
+   * CU-37 — Envía el audio grabado al backend (Whisper) y devuelve la
+   * transcripción + los filtros interpretados para confirmar antes de generar.
+   */
+  interpretVoice: async (audio: Blob): Promise<VoiceReportInterpretation> => {
+    const form = new FormData()
+    const ext = audio.type.includes('ogg') ? 'ogg' : 'webm'
+    form.append('audio', audio, `pedido.${ext}`)
+    // Sobrescribimos el Content-Type por defecto (application/json) del cliente:
+    // con ese header axios serializaría el FormData a JSON y perdería el audio.
+    // Pasándolo como multipart, el navegador agrega el boundary correcto.
+    const response = await apiClient.post('/reports/voice', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data as VoiceReportInterpretation
   },
 }

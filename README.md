@@ -192,13 +192,4 @@ OPENAI_API_KEY=                         # solo backend (la web y la app NUNCA la
 # S3 (evidencias): AWS_S3_BUCKET, AWS_REGION, AWS_S3_ENDPOINT, AWS_ACCESS_KEY_ID/SECRET
 ```
 
-## Documentación
-
-| Documento | Para qué |
-|---|---|
-| [mobile/README.md](./mobile/README.md) | Correr y **buildear la app móvil** (Windows/macOS, requisito de ruta sin espacios) |
-| [Context.md](./Context.md) | Arquitectura, modelo de datos, ADRs, planificación por ciclos, deuda técnica |
-| [CasosDeUso.md](./CasosDeUso.md) | Especificación detallada de los 36 casos de uso |
-| [GUIA_DESPLIEGUE_AWS.md](./GUIA_DESPLIEGUE_AWS.md) | Despliegue en AWS |
-| [GUIA_DEMO_DEFENSA.md](./GUIA_DEMO_DEFENSA.md) | Guion de la demo / defensa |
 </content>
